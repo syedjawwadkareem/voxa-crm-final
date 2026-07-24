@@ -4,11 +4,159 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Chart from 'chart.js/auto';
 import './voxa.css';
 
+// ==================== ROLE-BASED ACCESS CONTROL ====================
+
+type UserRole = 'super_admin' | 'platform_admin' | 'tenant_admin' | 'account_manager' | 'sales_rep' | 'support_agent' | 'agent';
+
+interface RolePermission {
+  canAccessAdmin: boolean;
+  canManageTenants: boolean;
+  canManageDIDs: boolean;
+  canManageUsers: boolean;
+  canManageRoles: boolean;
+  canViewBilling: boolean;
+  canModifyBilling: boolean;
+  canAccessSoftphone: boolean;
+  canMakeOutbound: boolean;
+  canAnswerInbound: boolean;
+  canViewReports: boolean;
+  canManageIVR: boolean;
+  canViewSecurity: boolean;
+  canModifySettings: boolean;
+}
+
+const rolePermissions: Record<UserRole, RolePermission> = {
+  super_admin: {
+    canAccessAdmin: true,
+    canManageTenants: true,
+    canManageDIDs: true,
+    canManageUsers: true,
+    canManageRoles: true,
+    canViewBilling: true,
+    canModifyBilling: true,
+    canAccessSoftphone: true,
+    canMakeOutbound: true,
+    canAnswerInbound: true,
+    canViewReports: true,
+    canManageIVR: true,
+    canViewSecurity: true,
+    canModifySettings: true,
+  },
+  platform_admin: {
+    canAccessAdmin: true,
+    canManageTenants: true,
+    canManageDIDs: true,
+    canManageUsers: true,
+    canManageRoles: false,
+    canViewBilling: true,
+    canModifyBilling: false,
+    canAccessSoftphone: true,
+    canMakeOutbound: true,
+    canAnswerInbound: true,
+    canViewReports: true,
+    canManageIVR: true,
+    canViewSecurity: true,
+    canModifySettings: false,
+  },
+  tenant_admin: {
+    canAccessAdmin: false,
+    canManageTenants: false,
+    canManageDIDs: true,
+    canManageUsers: true,
+    canManageRoles: false,
+    canViewBilling: true,
+    canModifyBilling: false,
+    canAccessSoftphone: true,
+    canMakeOutbound: true,
+    canAnswerInbound: true,
+    canViewReports: true,
+    canManageIVR: true,
+    canViewSecurity: false,
+    canModifySettings: false,
+  },
+  account_manager: {
+    canAccessAdmin: false,
+    canManageTenants: false,
+    canManageDIDs: false,
+    canManageUsers: false,
+    canManageRoles: false,
+    canViewBilling: true,
+    canModifyBilling: false,
+    canAccessSoftphone: true,
+    canMakeOutbound: true,
+    canAnswerInbound: true,
+    canViewReports: true,
+    canManageIVR: false,
+    canViewSecurity: false,
+    canModifySettings: false,
+  },
+  sales_rep: {
+    canAccessAdmin: false,
+    canManageTenants: false,
+    canManageDIDs: false,
+    canManageUsers: false,
+    canManageRoles: false,
+    canViewBilling: false,
+    canModifyBilling: false,
+    canAccessSoftphone: true,
+    canMakeOutbound: true,
+    canAnswerInbound: false,
+    canViewReports: true,
+    canManageIVR: false,
+    canViewSecurity: false,
+    canModifySettings: false,
+  },
+  support_agent: {
+    canAccessAdmin: false,
+    canManageTenants: false,
+    canManageDIDs: false,
+    canManageUsers: false,
+    canManageRoles: false,
+    canViewBilling: false,
+    canModifyBilling: false,
+    canAccessSoftphone: true,
+    canMakeOutbound: false,
+    canAnswerInbound: true,
+    canViewReports: true,
+    canManageIVR: false,
+    canViewSecurity: false,
+    canModifySettings: false,
+  },
+  agent: {
+    canAccessAdmin: false,
+    canManageTenants: false,
+    canManageDIDs: false,
+    canManageUsers: false,
+    canManageRoles: false,
+    canViewBilling: false,
+    canModifyBilling: false,
+    canAccessSoftphone: true,
+    canMakeOutbound: true,
+    canAnswerInbound: true,
+    canViewReports: false,
+    canManageIVR: false,
+    canViewSecurity: false,
+    canModifySettings: false,
+  },
+};
+
+const roleLabels: Record<UserRole, string> = {
+  super_admin: 'Super Admin',
+  platform_admin: 'Platform Admin',
+  tenant_admin: 'Tenant Admin',
+  account_manager: 'Account Manager',
+  sales_rep: 'Sales Representative',
+  support_agent: 'Support Agent',
+  agent: 'Agent',
+};
+
+// =====================================================================
+
 interface Agent {
   name: string;
   color: string;
   checked: boolean;
-  status: 'available' | 'on-call' | 'away';
+  status: string;
 }
 
 interface QueueItem {
@@ -28,8 +176,50 @@ interface IVRNode {
 }
 
 export default function VOXA() {
+  // Page State - declare first
   const [activePage, setActivePage] = useState('admin');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Role-Based Access Control State
+  const [userRole, setUserRole] = useState<UserRole>('platform_admin');
+  const [userTenant, setUserTenant] = useState('Phoenix Telecom Inc.');
+  const [showRoleSelector, setShowRoleSelector] = useState(false);
+
+  // Get current user permissions
+  const userPerms = rolePermissions[userRole];
+
+  // Permission checking functions
+  const hasPermission = useCallback((permission: keyof RolePermission) => {
+    return userPerms[permission];
+  }, [userPerms]);
+
+  const getPermittedPages = useCallback(() => {
+    const pages = [
+      { key: 'admin', label: 'Admin Panel', required: 'canAccessAdmin' },
+      { key: 'softphone', label: 'Softphone', required: 'canAccessSoftphone' },
+      { key: 'outbound', label: 'Outbound Calls', required: 'canMakeOutbound' },
+      { key: 'inbound', label: 'Inbound Calls', required: 'canAnswerInbound' },
+      { key: 'queue', label: 'Call Queue', required: 'canAnswerInbound' },
+      { key: 'billing', label: 'Global Billing', required: 'canViewBilling' },
+      { key: 'numbers', label: 'DID Management', required: 'canManageDIDs' },
+      { key: 'tenants', label: 'Tenant Management', required: 'canManageTenants' },
+      { key: 'omni', label: 'OmniChannel', required: 'canAccessSoftphone' },
+      { key: 'ivr', label: 'IVR Menu', required: 'canManageIVR' },
+      { key: 'logs', label: 'Master Logs', required: 'canViewReports' },
+      { key: 'users', label: 'Users', required: 'canManageUsers' },
+      { key: 'security', label: 'Security', required: 'canViewSecurity' },
+    ];
+    return pages.filter((p) => hasPermission(p.required as keyof RolePermission));
+  }, [hasPermission]);
+
+  // Ensure user can access current page
+  const permittedPages = getPermittedPages();
+  const canAccessCurrentPage = permittedPages.some((p) => p.key === activePage);
+  useEffect(() => {
+    if (!canAccessCurrentPage && permittedPages.length > 0) {
+      setActivePage(permittedPages[0].key);
+    }
+  }, [userRole, canAccessCurrentPage, permittedPages]);
   const [callState, setCallState] = useState({
     active: false,
     mute: false,
@@ -90,12 +280,6 @@ export default function VOXA() {
   const [userSearch, setUserSearch] = useState('');
   const [permissionsModal, setPermissionsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string>('');
-  const [userPerms, setUserPerms] = useState({
-    canMakeOutbound: true,
-    canViewReports: true,
-    canManageUsers: false,
-    canProvisionNumbers: false,
-  });
 
   // DID Management State
   const [dids, setDids] = useState([
@@ -609,29 +793,17 @@ export default function VOXA() {
           </button>
         </div>
         <nav className="p-3 flex-1 overflow-y-auto text-sm">
-          {[
-            { key: 'admin', label: 'Admin Panel' },
-            { key: 'softphone', label: 'Softphone' },
-            { key: 'outbound', label: 'Outbound Calls' },
-            { key: 'inbound', label: 'Inbound Calls' },
-            { key: 'queue', label: 'Call Queue' },
-            { key: 'billing', label: 'Global Billing' },
-            { key: 'numbers', label: 'DID Management' },
-            { key: 'tenants', label: 'Tenant Management' },
-            { key: 'omni', label: 'OmniChannel' },
-            { key: 'ivr', label: 'IVR Menu' },
-            { key: 'logs', label: 'Master Logs' },
-            { key: 'users', label: 'Users' },
-            { key: 'security', label: 'Security' },
-          ].map((item) => (
+          {permittedPages.map((item) => (
             <div
               key={item.key}
               className={`sidebar-link ${activePage === item.key ? 'active' : ''}`}
               onClick={() => switchPage(item.key)}
+              title={`Access Level: ${roleLabels[userRole]}`}
             >
               {item.label}
             </div>
           ))}
+          {permittedPages.length === 0 && <div className="text-slate-500 p-2">No pages available for this role</div>}
         </nav>
         <div className="p-4 border-t border-white/5 text-xs text-slate-400 flex items-center gap-2">
           <span className="avatar" style={{ background: '#f59e0b' }}>AS</span>
@@ -649,9 +821,33 @@ export default function VOXA() {
             ☰
           </button>
           <span className="logo-mark">VOXA</span>
-          <button className="ml-auto btn-blue" onClick={() => setTestCallModal(true)}>
-            📞 Test Call
-          </button>
+          <div className="ml-auto flex items-center gap-3">
+            <div className="relative">
+              <button className="btn-outline" onClick={() => setShowRoleSelector(!showRoleSelector)}>
+                👤 {roleLabels[userRole]}
+              </button>
+              {showRoleSelector && (
+                <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded shadow-lg z-50 min-w-[200px]">
+                  {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+                    <button
+                      key={role}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700 ${userRole === role ? 'bg-slate-700 font-semibold' : ''}`}
+                      onClick={() => {
+                        setUserRole(role);
+                        setShowRoleSelector(false);
+                        showToast(`Role changed to ${roleLabels[role]}`);
+                      }}
+                    >
+                      {roleLabels[role]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button className="btn-blue" onClick={() => setTestCallModal(true)}>
+              📞 Test Call
+            </button>
+          </div>
         </div>
 
         {/* Admin Panel */}
@@ -1187,10 +1383,11 @@ export default function VOXA() {
         )}
 
         {/* Billing */}
-        {activePage === 'billing' && (
+        {activePage === 'billing' && hasPermission('canViewBilling') && (
           <section className="page active">
             <div className="px-8 pt-6">
               <h1 className="text-2xl font-bold">Global Billing</h1>
+              <p className="text-slate-500 text-sm">Role: {roleLabels[userRole]} | Modify Billing: {hasPermission('canModifyBilling') ? 'Allowed' : 'Restricted'}</p>
             </div>
             <div className="px-8 mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="kpi">
@@ -1259,10 +1456,11 @@ export default function VOXA() {
         )}
 
         {/* Security */}
-        {activePage === 'security' && (
+        {activePage === 'security' && hasPermission('canViewSecurity') && (
           <section className="page active">
             <div className="px-8 pt-6">
               <h1 className="text-2xl font-bold">Security</h1>
+              <p className="text-slate-500 text-sm">Role: {roleLabels[userRole]}</p>
             </div>
             <div className="px-8 mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4 pb-8">
               <div className="card p-4">
@@ -1314,7 +1512,7 @@ export default function VOXA() {
         )}
 
         {/* Users */}
-        {activePage === 'users' && (
+        {activePage === 'users' && hasPermission('canManageUsers') && (
           <section className="page active">
             <div className="px-8 pt-6 flex items-start justify-between flex-wrap gap-2">
               <div>
@@ -1403,11 +1601,13 @@ export default function VOXA() {
         )}
 
         {/* Number Provisioning */}
-        {activePage === 'numbers' && (
+        {activePage === 'numbers' && hasPermission('canManageDIDs') && (
           <section className="page active">
             <div className="px-8 pt-6 flex items-start justify-between flex-wrap gap-2">
-              <div><h1 className="text-2xl font-bold">DID Management</h1><p className="text-slate-500 text-sm">Manage Direct Inward Dial numbers and assignments</p></div>
-              <button className="btn-blue" onClick={() => { setCreateDidModal(true); setDidForm({ phone: '', type: 'Inbound', tenant: 'Phoenix Telecom Inc.', extension: '', provider: 'Twilio' }); }}>+ Create DID</button>
+              <div><h1 className="text-2xl font-bold">DID Management</h1><p className="text-slate-500 text-sm">Manage Direct Inward Dial numbers and assignments • Role: {roleLabels[userRole]}</p></div>
+              {hasPermission('canManageDIDs') && (
+                <button className="btn-blue" onClick={() => { setCreateDidModal(true); setDidForm({ phone: '', type: 'Inbound', tenant: 'Phoenix Telecom Inc.', extension: '', provider: 'Twilio' }); }}>+ Create DID</button>
+              )}
             </div>
             <div className="px-8 mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="kpi"><div className="text-xs text-slate-500">Total DIDs</div><div className="text-2xl font-bold">{dids.length}</div></div>
@@ -1448,11 +1648,13 @@ export default function VOXA() {
           </section>
         )}
 
-        {activePage === 'tenants' && (
+        {activePage === 'tenants' && hasPermission('canManageTenants') && (
           <section className="page active">
             <div className="px-8 pt-6 flex items-start justify-between flex-wrap gap-2">
-              <div><h1 className="text-2xl font-bold">Tenant Management</h1><p className="text-slate-500 text-sm">Create and manage customer tenants and workspaces</p></div>
-              <button className="btn-blue" onClick={() => { setCreateTenantModal(true); setTenantForm({ name: '', owner: '', tier: 'Professional' }); }}>+ Create Tenant</button>
+              <div><h1 className="text-2xl font-bold">Tenant Management</h1><p className="text-slate-500 text-sm">Create and manage customer tenants and workspaces • Role: {roleLabels[userRole]}</p></div>
+              {hasPermission('canManageTenants') && (
+                <button className="btn-blue" onClick={() => { setCreateTenantModal(true); setTenantForm({ name: '', owner: '', tier: 'Professional' }); }}>+ Create Tenant</button>
+              )}
             </div>
             <div className="px-8 mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="kpi"><div className="text-xs text-slate-500">Total Tenants</div><div className="text-2xl font-bold">{tenants.length}</div></div>
