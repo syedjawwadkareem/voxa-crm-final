@@ -809,7 +809,8 @@ export default function VOXA() {
           <span className="avatar" style={{ background: '#f59e0b' }}>AS</span>
           <div>
             <div className="text-white text-sm">Amy Smith</div>
-            <div>Global Admin</div>
+            <div className="text-cyan-400 font-semibold">{roleLabels[userRole]}</div>
+            <div className="text-xs mt-1 text-cyan-300">({permittedPages.length} pages)</div>
           </div>
         </div>
       </aside>
@@ -821,17 +822,27 @@ export default function VOXA() {
             ☰
           </button>
           <span className="logo-mark">VOXA</span>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2">
             <div className="relative">
-              <button className="btn-outline" onClick={() => setShowRoleSelector(!showRoleSelector)}>
+              <button 
+                className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold px-4 py-2 rounded border border-cyan-400 shadow-lg transition-all" 
+                onClick={() => setShowRoleSelector(!showRoleSelector)}
+              >
                 👤 {roleLabels[userRole]}
               </button>
               {showRoleSelector && (
-                <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded shadow-lg z-50 min-w-[200px]">
+                <div className="absolute right-0 top-full mt-2 bg-slate-900 border-2 border-cyan-400 rounded-lg shadow-2xl z-50 min-w-[220px]">
+                  <div className="p-2 border-b border-slate-700">
+                    <div className="text-xs font-bold text-cyan-400 px-2">SELECT ROLE</div>
+                  </div>
                   {(Object.keys(roleLabels) as UserRole[]).map((role) => (
                     <button
                       key={role}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700 ${userRole === role ? 'bg-slate-700 font-semibold' : ''}`}
+                      className={`w-full text-left px-4 py-2 text-sm font-medium transition-all ${
+                        userRole === role 
+                          ? 'bg-cyan-500 text-white border-l-4 border-cyan-300' 
+                          : 'text-slate-200 hover:bg-slate-800 hover:text-cyan-300'
+                      }`}
                       onClick={() => {
                         setUserRole(role);
                         setShowRoleSelector(false);
