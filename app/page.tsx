@@ -97,6 +97,30 @@ export default function VOXA() {
     canProvisionNumbers: false,
   });
 
+  // DID Management State
+  const [dids, setDids] = useState([
+    { id: 'DID001', phone: '(345) 616-1256', type: 'Inbound', status: 'Active', tenant: 'Phoenix Telecom Inc.', extension: 'ext-001', created: '06/12/2020', provider: 'Twilio' },
+    { id: 'DID002', phone: '(408) 637-1715', type: 'Inbound', status: 'Active', tenant: 'Phoenix Telecom Inc.', extension: 'ext-002', created: '06/13/2020', provider: 'Twilio' },
+    { id: 'DID003', phone: '(254) 414-3453', type: 'Outbound', status: 'Active', tenant: 'Phoenix Telecom Inc.', extension: 'ext-003', created: '06/14/2020', provider: 'Twilio' },
+  ]);
+  const [createDidModal, setCreateDidModal] = useState(false);
+  const [editDidModal, setEditDidModal] = useState(false);
+  const [selectedDid, setSelectedDid] = useState<typeof dids[0] | null>(null);
+  const [didForm, setDidForm] = useState({ phone: '', type: 'Inbound', tenant: 'Phoenix Telecom Inc.', extension: '', provider: 'Twilio' });
+  const [didSearch, setDidSearch] = useState('');
+
+  // Tenant Management State
+  const [tenants, setTenants] = useState([
+    { id: 'TENANT001', name: 'Phoenix Telecom Inc.', owner: 'Aman Smith', status: 'Active', users: 12, dids: 8, created: '01/05/2022', tier: 'Enterprise' },
+    { id: 'TENANT002', name: 'Betty\'s Shop', owner: 'Betty Cooper', status: 'Active', users: 5, dids: 3, created: '15/06/2022', tier: 'Professional' },
+    { id: 'TENANT003', name: 'Tech Solutions Ltd', owner: 'Robert Mendez', status: 'Inactive', users: 0, dids: 0, created: '20/07/2022', tier: 'Starter' },
+  ]);
+  const [createTenantModal, setCreateTenantModal] = useState(false);
+  const [editTenantModal, setEditTenantModal] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<typeof tenants[0] | null>(null);
+  const [tenantForm, setTenantForm] = useState({ name: '', owner: '', tier: 'Professional' });
+  const [tenantSearch, setTenantSearch] = useState('');
+
   const waveCanvasRef = useRef<HTMLCanvasElement>(null);
   const tcFromRef = useRef<HTMLSelectElement>(null);
   const toNumberRef = useRef<HTMLInputElement>(null);
@@ -234,6 +258,100 @@ export default function VOXA() {
     state[k] = !state[k];
     const label = k.charAt(0).toUpperCase() + k.slice(1);
     showToast(label + ' ' + (state[k] ? 'ON' : 'OFF'));
+  };
+
+  // DID Management Functions
+  const createDid = () => {
+    if (!didForm.phone || !didForm.extension) {
+      showToast('Fill all required fields');
+      return;
+    }
+    const newDid = {
+      id: `DID${String(dids.length + 1).padStart(3, '0')}`,
+      phone: didForm.phone,
+      type: didForm.type as 'Inbound' | 'Outbound',
+      status: 'Active' as const,
+      tenant: didForm.tenant,
+      extension: didForm.extension,
+      created: new Date().toLocaleDateString(),
+      provider: didForm.provider,
+    };
+    setDids([...dids, newDid]);
+    setCreateDidModal(false);
+    setDidForm({ phone: '', type: 'Inbound', tenant: 'Phoenix Telecom Inc.', extension: '', provider: 'Twilio' });
+    showToast(`DID ${didForm.phone} created successfully`);
+  };
+
+  const updateDid = () => {
+    if (!selectedDid || !didForm.phone || !didForm.extension) {
+      showToast('Fill all required fields');
+      return;
+    }
+    setDids(dids.map(d => d.id === selectedDid.id ? { ...selectedDid, ...didForm, type: didForm.type as 'Inbound' | 'Outbound' } : d));
+    setEditDidModal(false);
+    setSelectedDid(null);
+    setDidForm({ phone: '', type: 'Inbound', tenant: 'Phoenix Telecom Inc.', extension: '', provider: 'Twilio' });
+    showToast(`DID ${didForm.phone} updated successfully`);
+  };
+
+  const deleteDid = (id: string) => {
+    setDids(dids.filter(d => d.id !== id));
+    showToast('DID deleted successfully');
+  };
+
+  const assignDidToTenant = (didId: string, tenantId: string) => {
+    const tenant = tenants.find(t => t.id === tenantId);
+    if (!tenant) return;
+    setDids(dids.map(d => d.id === didId ? { ...d, tenant: tenant.name } : d));
+    showToast(`DID assigned to ${tenant.name}`);
+  };
+
+  // Tenant Management Functions
+  const createTenant = () => {
+    if (!tenantForm.name || !tenantForm.owner) {
+      showToast('Fill all required fields');
+      return;
+    }
+    const newTenant = {
+      id: `TENANT${String(tenants.length + 1).padStart(3, '0')}`,
+      name: tenantForm.name,
+      owner: tenantForm.owner,
+      status: 'Active' as const,
+      users: 0,
+      dids: 0,
+      created: new Date().toLocaleDateString(),
+      tier: tenantForm.tier as 'Starter' | 'Professional' | 'Enterprise',
+    };
+    setTenants([...tenants, newTenant]);
+    setCreateTenantModal(false);
+    setTenantForm({ name: '', owner: '', tier: 'Professional' });
+    showToast(`Tenant ${tenantForm.name} created successfully`);
+  };
+
+  const updateTenant = () => {
+    if (!selectedTenant || !tenantForm.name || !tenantForm.owner) {
+      showToast('Fill all required fields');
+      return;
+    }
+    setTenants(tenants.map(t => t.id === selectedTenant.id ? { ...selectedTenant, ...tenantForm, tier: tenantForm.tier as 'Starter' | 'Professional' | 'Enterprise' } : t));
+    setEditTenantModal(false);
+    setSelectedTenant(null);
+    setTenantForm({ name: '', owner: '', tier: 'Professional' });
+    showToast(`Tenant ${tenantForm.name} updated successfully`);
+  };
+
+  const deleteTenant = (id: string) => {
+    if (dids.some(d => tenants.find(t => t.id === id)?.name === d.tenant)) {
+      showToast('Cannot delete tenant with active DIDs');
+      return;
+    }
+    setTenants(tenants.filter(t => t.id !== id));
+    showToast('Tenant deleted successfully');
+  };
+
+  const toggleTenantStatus = (id: string) => {
+    setTenants(tenants.map(t => t.id === id ? { ...t, status: t.status === 'Active' ? 'Inactive' : 'Active' } : t));
+    showToast('Tenant status updated');
   };
 
   // Initialize and draw charts
@@ -468,6 +586,8 @@ export default function VOXA() {
 
   const filteredNumbers = numberData.filter((n) => n.phone.includes(numberSearch));
   const filteredUsers = usersData.filter((u) => u.name.toLowerCase().includes(userSearch.toLowerCase()));
+  const filteredDids = dids.filter((d) => d.phone.includes(didSearch) || d.extension.includes(didSearch));
+  const filteredTenants = tenants.filter((t) => t.name.toLowerCase().includes(tenantSearch.toLowerCase()));
 
   return (
     <div className="flex min-h-screen">
@@ -496,7 +616,8 @@ export default function VOXA() {
             { key: 'inbound', label: 'Inbound Calls' },
             { key: 'queue', label: 'Call Queue' },
             { key: 'billing', label: 'Global Billing' },
-            { key: 'numbers', label: 'Number Provisioning' },
+            { key: 'numbers', label: 'DID Management' },
+            { key: 'tenants', label: 'Tenant Management' },
             { key: 'omni', label: 'OmniChannel' },
             { key: 'ivr', label: 'IVR Menu' },
             { key: 'logs', label: 'Master Logs' },
@@ -1284,86 +1405,84 @@ export default function VOXA() {
         {/* Number Provisioning */}
         {activePage === 'numbers' && (
           <section className="page active">
-            <div className="px-8 pt-6">
-              <div className="text-xs text-slate-500">Global Call Logs Admin Portal</div>
-              <h1 className="text-xl md:text-2xl font-bold mt-1">Number Provisioning Dashboard</h1>
+            <div className="px-8 pt-6 flex items-start justify-between flex-wrap gap-2">
+              <div><h1 className="text-2xl font-bold">DID Management</h1><p className="text-slate-500 text-sm">Manage Direct Inward Dial numbers and assignments</p></div>
+              <button className="btn-blue" onClick={() => { setCreateDidModal(true); setDidForm({ phone: '', type: 'Inbound', tenant: 'Phoenix Telecom Inc.', extension: '', provider: 'Twilio' }); }}>+ Create DID</button>
             </div>
-            <div className="px-8 mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="kpi">
-                <div className="text-sm font-semibold">Number Status</div>
-                <div className="text-xs text-slate-500 mt-1">Incoming: 111-222-3333 (1/1)</div>
-                <div className="text-xs text-slate-500">Outgoing: (4) 616-1256</div>
-              </div>
-              <div className="kpi">
-                <div className="text-sm font-semibold">Organization</div>
-                <div className="text-sm mt-1 font-bold">Phoenix Telecom Inc.</div>
-              </div>
-              <div className="kpi">
-                <div className="text-sm font-semibold">SIP Trunk</div>
-                <div className="text-sm mt-1">Twilio - Connect</div>
-                <div className="text-xs text-slate-500">(345) 616-1256</div>
-              </div>
-              <div className="kpi">
-                <div className="text-sm font-semibold">Next Billable</div>
-                <div className="text-xl mt-1 font-bold">Oct 1 — $875.50</div>
-              </div>
+            <div className="px-8 mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="kpi"><div className="text-xs text-slate-500">Total DIDs</div><div className="text-2xl font-bold">{dids.length}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Active</div><div className="text-2xl font-bold text-emerald-600">{dids.filter(d => d.status === 'Active').length}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Inbound</div><div className="text-2xl font-bold">{dids.filter(d => d.type === 'Inbound').length}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Outbound</div><div className="text-2xl font-bold">{dids.filter(d => d.type === 'Outbound').length}</div></div>
             </div>
             <div className="px-8 mt-6 pb-8">
               <div className="card mt-4 p-3 flex flex-wrap gap-3 items-center">
-                <input
-                  className="input flex-1 min-w-[180px] max-w-md"
-                  placeholder="Search Area Code (e.g. 406)"
-                  value={numberSearch}
-                  onChange={(e) => setNumberSearch(e.target.value)}
-                />
-                <select className="select max-w-xs" onChange={(e) => showToast('Filtered by ' + e.target.value)}>
-                  <option>Filter by Country/Region</option>
-                  <option>USA</option>
-                  <option>Canada</option>
-                  <option>UK</option>
-                </select>
+                <input className="input flex-1 min-w-[180px] max-w-md" placeholder="Search by phone or extension..." value={didSearch} onChange={(e) => setDidSearch(e.target.value)} />
+                <button className="btn-outline" onClick={() => showToast('DIDs exported')}>⬇ Export</button>
               </div>
               <div className="card mt-3 table-wrap">
                 <table>
-                  <thead>
-                    <tr>
-                      <th>
-                        <input type="checkbox" />
-                      </th>
-                      <th>Phone</th>
-                      <th>Status</th>
-                      <th>Client</th>
-                      <th>Allocated To</th>
-                      <th>Date</th>
-                      <th>State</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>DID ID</th><th>Phone Number</th><th>Type</th><th>Status</th><th>Tenant</th><th>Extension</th><th>Provider</th><th>Created</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {filteredNumbers.map((r, i) => (
+                    {filteredDids.map((did, i) => (
                       <tr key={i}>
-                        <td>
-                          <input type="checkbox" />
-                        </td>
-                        <td className="font-medium whitespace-nowrap">{r.phone}</td>
-                        <td>
-                          {r.status === 'Free' ? (
-                            <span className="chip chip-gray">Free</span>
-                          ) : (
-                            <span className="chip chip-blue">Assigned</span>
-                          )}
-                        </td>
-                        <td>{r.client}</td>
-                        <td>{r.allocated}</td>
-                        <td>{r.date || '—'}</td>
-                        <td>{r.state || '—'}</td>
+                        <td className="font-medium whitespace-nowrap">{did.id}</td>
+                        <td className="font-semibold">{did.phone}</td>
+                        <td><span className={`chip ${did.type === 'Inbound' ? 'chip-blue' : 'chip-green'}`}>{did.type}</span></td>
+                        <td><span className="chip chip-green">Active</span></td>
+                        <td>{did.tenant}</td>
+                        <td>{did.extension}</td>
+                        <td>{did.provider}</td>
+                        <td>{did.created}</td>
                         <td className="whitespace-nowrap">
-                          <button className="btn-outline" onClick={() => showToast(`Edit ${r.phone}`)}>
-                            ✎
-                          </button>
-                          <button className="btn-outline" onClick={() => showToast('Assign')}>
-                            👤+
-                          </button>
+                          <button className="btn-outline" onClick={() => { setSelectedDid(did); setDidForm({ phone: did.phone, type: did.type, tenant: did.tenant, extension: did.extension, provider: did.provider }); setEditDidModal(true); }}>✎ Edit</button>
+                          <button className="btn-outline" onClick={() => assignDidToTenant(did.id, 'TENANT001')}>🔗 Assign</button>
+                          <button className="btn-outline" onClick={() => deleteDid(did.id)}>🗑 Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activePage === 'tenants' && (
+          <section className="page active">
+            <div className="px-8 pt-6 flex items-start justify-between flex-wrap gap-2">
+              <div><h1 className="text-2xl font-bold">Tenant Management</h1><p className="text-slate-500 text-sm">Create and manage customer tenants and workspaces</p></div>
+              <button className="btn-blue" onClick={() => { setCreateTenantModal(true); setTenantForm({ name: '', owner: '', tier: 'Professional' }); }}>+ Create Tenant</button>
+            </div>
+            <div className="px-8 mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="kpi"><div className="text-xs text-slate-500">Total Tenants</div><div className="text-2xl font-bold">{tenants.length}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Active</div><div className="text-2xl font-bold text-emerald-600">{tenants.filter(t => t.status === 'Active').length}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Total Users</div><div className="text-2xl font-bold">{tenants.reduce((sum, t) => sum + t.users, 0)}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Total DIDs</div><div className="text-2xl font-bold">{tenants.reduce((sum, t) => sum + t.dids, 0)}</div></div>
+            </div>
+            <div className="px-8 mt-6 pb-8">
+              <div className="card mt-4 p-3 flex flex-wrap gap-3 items-center">
+                <input className="input flex-1 min-w-[180px] max-w-md" placeholder="Search tenants..." value={tenantSearch} onChange={(e) => setTenantSearch(e.target.value)} />
+                <button className="btn-outline" onClick={() => showToast('Tenants exported')}>⬇ Export</button>
+              </div>
+              <div className="card mt-3 table-wrap">
+                <table>
+                  <thead><tr><th>Tenant ID</th><th>Name</th><th>Owner</th><th>Status</th><th>Users</th><th>DIDs</th><th>Tier</th><th>Created</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {filteredTenants.map((tenant, i) => (
+                      <tr key={i}>
+                        <td className="font-medium whitespace-nowrap">{tenant.id}</td>
+                        <td className="font-semibold">{tenant.name}</td>
+                        <td>{tenant.owner}</td>
+                        <td><span className={`chip ${tenant.status === 'Active' ? 'chip-green' : 'chip-gray'}`}>{tenant.status}</span></td>
+                        <td>{tenant.users}</td>
+                        <td>{tenant.dids}</td>
+                        <td><span className="chip chip-blue">{tenant.tier}</span></td>
+                        <td>{tenant.created}</td>
+                        <td className="whitespace-nowrap">
+                          <button className="btn-outline" onClick={() => { setSelectedTenant(tenant); setTenantForm({ name: tenant.name, owner: tenant.owner, tier: tenant.tier }); setEditTenantModal(true); }}>✎ Edit</button>
+                          <button className="btn-outline" onClick={() => toggleTenantStatus(tenant.id)}>{tenant.status === 'Active' ? 'Disable' : 'Enable'}</button>
+                          <button className="btn-outline" onClick={() => deleteTenant(tenant.id)}>🗑 Delete</button>
                         </td>
                       </tr>
                     ))}
@@ -1792,6 +1911,148 @@ export default function VOXA() {
               <button className="w-full btn-primary py-3" onClick={bulkDial}>
                 Queue Bulk Dial
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create DID Modal */}
+      {createDidModal && (
+        <div className="modal-backdrop open" onClick={() => setCreateDidModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Create New DID</h3>
+              <button onClick={() => setCreateDidModal(false)} className="text-slate-500">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium">Phone Number *</label>
+                <input className="input" placeholder="e.g., (555) 123-4567" value={didForm.phone} onChange={(e) => setDidForm({...didForm, phone: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Type *</label>
+                <select className="select" value={didForm.type} onChange={(e) => setDidForm({...didForm, type: e.target.value as 'Inbound' | 'Outbound'})}>
+                  <option>Inbound</option>
+                  <option>Outbound</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Extension *</label>
+                <input className="input" placeholder="e.g., ext-001" value={didForm.extension} onChange={(e) => setDidForm({...didForm, extension: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Tenant</label>
+                <select className="select" value={didForm.tenant} onChange={(e) => setDidForm({...didForm, tenant: e.target.value})}>
+                  {tenants.map(t => <option key={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Provider</label>
+                <select className="select" value={didForm.provider} onChange={(e) => setDidForm({...didForm, provider: e.target.value})}>
+                  <option>Twilio</option>
+                  <option>Vonage</option>
+                  <option>Bandwidth</option>
+                </select>
+              </div>
+              <button className="w-full btn-primary py-3" onClick={createDid}>Create DID</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit DID Modal */}
+      {editDidModal && selectedDid && (
+        <div className="modal-backdrop open" onClick={() => setEditDidModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Edit DID {selectedDid.id}</h3>
+              <button onClick={() => setEditDidModal(false)} className="text-slate-500">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium">Phone Number</label>
+                <input className="input" value={didForm.phone} onChange={(e) => setDidForm({...didForm, phone: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Type</label>
+                <select className="select" value={didForm.type} onChange={(e) => setDidForm({...didForm, type: e.target.value as 'Inbound' | 'Outbound'})}>
+                  <option>Inbound</option>
+                  <option>Outbound</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Extension</label>
+                <input className="input" value={didForm.extension} onChange={(e) => setDidForm({...didForm, extension: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Tenant</label>
+                <select className="select" value={didForm.tenant} onChange={(e) => setDidForm({...didForm, tenant: e.target.value})}>
+                  {tenants.map(t => <option key={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <button className="w-full btn-primary py-3" onClick={updateDid}>Update DID</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Tenant Modal */}
+      {createTenantModal && (
+        <div className="modal-backdrop open" onClick={() => setCreateTenantModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Create New Tenant</h3>
+              <button onClick={() => setCreateTenantModal(false)} className="text-slate-500">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium">Tenant Name *</label>
+                <input className="input" placeholder="e.g., Acme Corporation" value={tenantForm.name} onChange={(e) => setTenantForm({...tenantForm, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Owner Email *</label>
+                <input className="input" type="email" placeholder="owner@example.com" value={tenantForm.owner} onChange={(e) => setTenantForm({...tenantForm, owner: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Subscription Tier</label>
+                <select className="select" value={tenantForm.tier} onChange={(e) => setTenantForm({...tenantForm, tier: e.target.value as 'Starter' | 'Professional' | 'Enterprise'})}>
+                  <option>Starter</option>
+                  <option>Professional</option>
+                  <option>Enterprise</option>
+                </select>
+              </div>
+              <button className="w-full btn-primary py-3" onClick={createTenant}>Create Tenant</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Tenant Modal */}
+      {editTenantModal && selectedTenant && (
+        <div className="modal-backdrop open" onClick={() => setEditTenantModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Edit Tenant {selectedTenant.id}</h3>
+              <button onClick={() => setEditTenantModal(false)} className="text-slate-500">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium">Tenant Name</label>
+                <input className="input" value={tenantForm.name} onChange={(e) => setTenantForm({...tenantForm, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Owner Email</label>
+                <input className="input" type="email" value={tenantForm.owner} onChange={(e) => setTenantForm({...tenantForm, owner: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Subscription Tier</label>
+                <select className="select" value={tenantForm.tier} onChange={(e) => setTenantForm({...tenantForm, tier: e.target.value as 'Starter' | 'Professional' | 'Enterprise'})}>
+                  <option>Starter</option>
+                  <option>Professional</option>
+                  <option>Enterprise</option>
+                </select>
+              </div>
+              <button className="w-full btn-primary py-3" onClick={updateTenant}>Update Tenant</button>
             </div>
           </div>
         </div>
