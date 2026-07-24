@@ -281,6 +281,18 @@ export default function VOXA() {
   const [permissionsModal, setPermissionsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string>('');
 
+  // User Management State
+  const [users, setUsers] = useState([
+    { id: 'USER001', name: 'Aman_Smith', role: 'Global Admin', status: 'Active', owner: 'Aman_Smith', date: '19/10/22', color: '#64748b' },
+    { id: 'USER002', name: 'Kimberly_Woods', role: 'Support Manager', status: 'Active', owner: 'Kimberly_Woods', date: '29/08/22', color: '#8b5cf6' },
+    { id: 'USER003', name: 'Robert_Mendez', role: 'Account Owner', status: 'Active', owner: 'Aman_Smith', date: '07/05/22', color: '#0ea5e9' },
+  ]);
+  const [createUserModal, setCreateUserModal] = useState(false);
+  const [editUserModal, setEditUserModal] = useState(false);
+  const [selectedUserData, setSelectedUserData] = useState<typeof users[0] | null>(null);
+  const [userForm, setUserForm] = useState({ name: '', role: 'Agent', status: 'Active' });
+  const [userFilterStatus, setUserFilterStatus] = useState('All');
+
   // DID Management State
   const [dids, setDids] = useState([
     { id: 'DID001', phone: '(345) 616-1256', type: 'Inbound', status: 'Active', tenant: 'Phoenix Telecom Inc.', extension: 'ext-001', created: '06/12/2020', provider: 'Twilio' },
@@ -538,6 +550,55 @@ export default function VOXA() {
     showToast('Tenant status updated');
   };
 
+  // User Management Functions
+  const createUser = () => {
+    if (!userForm.name || !userForm.role) {
+      showToast('Fill all required fields');
+      return;
+    }
+    const newUser = {
+      id: `USER${String(users.length + 1).padStart(3, '0')}`,
+      name: userForm.name,
+      role: userForm.role,
+      status: 'Active' as const,
+      owner: 'Aman_Smith',
+      date: new Date().toLocaleDateString(),
+      color: ['#64748b', '#f59e0b', '#8b5cf6', '#0ea5e9', '#10b981'][Math.floor(Math.random() * 5)],
+    };
+    setUsers([...users, newUser]);
+    setCreateUserModal(false);
+    setUserForm({ name: '', role: 'Agent', status: 'Active' });
+    showToast(`User ${userForm.name} created successfully`);
+  };
+
+  const updateUser = () => {
+    if (!selectedUserData || !userForm.name || !userForm.role) {
+      showToast('Fill all required fields');
+      return;
+    }
+    setUsers(users.map(u => u.id === selectedUserData.id ? { ...selectedUserData, ...userForm } : u));
+    setEditUserModal(false);
+    setSelectedUserData(null);
+    setUserForm({ name: '', role: 'Agent', status: 'Active' });
+    showToast(`User ${userForm.name} updated successfully`);
+  };
+
+  const deleteUser = (id: string) => {
+    setUsers(users.filter(u => u.id !== id));
+    showToast('User deleted successfully');
+  };
+
+  const toggleUserStatus = (id: string) => {
+    setUsers(users.map(u => u.id === id ? { ...u, status: u.status === 'Active' ? 'Disabled' : 'Active' } : u));
+    showToast('User status updated');
+  };
+
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = u.name.toLowerCase().includes(userSearch.toLowerCase());
+    const matchesStatus = userFilterStatus === 'All' || u.status === userFilterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
   // Initialize and draw charts
   useEffect(() => {
     if (activePage === 'admin' && adminChartRef.current) {
@@ -769,7 +830,6 @@ export default function VOXA() {
   };
 
   const filteredNumbers = numberData.filter((n) => n.phone.includes(numberSearch));
-  const filteredUsers = usersData.filter((u) => u.name.toLowerCase().includes(userSearch.toLowerCase()));
   const filteredDids = dids.filter((d) => d.phone.includes(didSearch) || d.extension.includes(didSearch));
   const filteredTenants = tenants.filter((t) => t.name.toLowerCase().includes(tenantSearch.toLowerCase()));
 
@@ -810,7 +870,6 @@ export default function VOXA() {
           <div>
             <div className="text-white text-sm">Amy Smith</div>
             <div className="text-cyan-400 font-semibold">{roleLabels[userRole]}</div>
-            <div className="text-xs mt-1 text-cyan-300">({permittedPages.length} pages)</div>
           </div>
         </div>
       </aside>
@@ -825,10 +884,22 @@ export default function VOXA() {
           <div className="ml-auto flex items-center gap-2">
             <div className="relative">
               <button 
-                className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold px-4 py-2 rounded border border-cyan-400 shadow-lg transition-all" 
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold px-3 py-2 rounded border-2 border-cyan-400 shadow-lg transition-all hover:shadow-cyan-400/50" 
                 onClick={() => setShowRoleSelector(!showRoleSelector)}
               >
-                👤 {roleLabels[userRole]}
+                <svg className="w-5 h-5" viewBox="0 0 40 40" fill="none">
+                  <path d="M6 12 L10 28 L14 12 L18 28 L22 12 L26 28 L30 12 L34 28" stroke="url(#g1)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <defs>
+                    <linearGradient id="g1" x1="0" x2="40">
+                      <stop stopColor="#22c1a5" />
+                      <stop offset="1" stopColor="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <span>{roleLabels[userRole]}</span>
+                <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
               </button>
               {showRoleSelector && (
                 <div className="absolute right-0 top-full mt-2 bg-slate-900 border-2 border-cyan-400 rounded-lg shadow-2xl z-50 min-w-[220px]">
@@ -1527,80 +1598,43 @@ export default function VOXA() {
           <section className="page active">
             <div className="px-8 pt-6 flex items-start justify-between flex-wrap gap-2">
               <div>
-                <div className="text-xs text-slate-500">Workspace Admin</div>
-                <h1 className="text-xl md:text-2xl font-bold mt-1">User Management — Multi-Tenant Workspace</h1>
+                <h1 className="text-2xl font-bold">User Management</h1>
+                <p className="text-slate-500 text-sm">Manage workspace users and permissions • Role: {roleLabels[userRole]}</p>
               </div>
-              <button
-                className="btn-blue"
-                onClick={() => {
-                  setPermissionsModal(true);
-                  setSelectedUser(usersData[0].name);
-                }}
-              >
-                + Add New User
-              </button>
+              <button className="btn-blue" onClick={() => { setCreateUserModal(true); setUserForm({ name: '', role: 'Agent', status: 'Active' }); }}>+ Add New User</button>
             </div>
-            <div className="px-8 mt-6">
-              <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-                <h2 className="text-lg font-semibold">Global Workspace Overview</h2>
-                <input
-                  className="input"
-                  placeholder="Search users..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                />
+            <div className="px-8 mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="kpi"><div className="text-xs text-slate-500">Total Users</div><div className="text-2xl font-bold">{users.length}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Active</div><div className="text-2xl font-bold text-emerald-600">{users.filter(u => u.status === 'Active').length}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Disabled</div><div className="text-2xl font-bold text-red-600">{users.filter(u => u.status === 'Disabled').length}</div></div>
+              <div className="kpi"><div className="text-xs text-slate-500">Admins</div><div className="text-2xl font-bold">{users.filter(u => u.role.includes('Admin')).length}</div></div>
+            </div>
+            <div className="px-8 mt-6 pb-8">
+              <div className="card mt-4 p-3 flex flex-wrap gap-3 items-center">
+                <input className="input flex-1 min-w-[180px] max-w-md" placeholder="Search users..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
+                <select className="select max-w-xs" value={userFilterStatus} onChange={(e) => setUserFilterStatus(e.target.value)}>
+                  <option>All</option>
+                  <option>Active</option>
+                  <option>Disabled</option>
+                </select>
+                <button className="btn-outline" onClick={() => showToast('Users exported')}>⬇ Export</button>
               </div>
-              <div className="card table-wrap pb-8">
+              <div className="card mt-3 table-wrap">
                 <table>
-                  <thead>
-                    <tr>
-                      <th>
-                        <input type="checkbox" />
-                      </th>
-                      <th>Avatar</th>
-                      <th>Username</th>
-                      <th>Role</th>
-                      <th>Status</th>
-                      <th>Owner</th>
-                      <th>Created</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th><input type="checkbox" /></th><th>Username</th><th>Role</th><th>Status</th><th>Owner</th><th>Created</th><th>Actions</th></tr></thead>
                   <tbody>
                     {filteredUsers.map((u, i) => (
                       <tr key={i}>
-                        <td>
-                          <input type="checkbox" />
-                        </td>
-                        <td>
-                          <span className="avatar" style={{ background: u.color }}>
-                            {initials(u.name)}
-                          </span>
-                        </td>
-                        <td>{u.name}</td>
+                        <td><input type="checkbox" /></td>
+                        <td className="font-medium"><span className="avatar mr-2" style={{ background: u.color }}>{initials(u.name)}</span>{u.name}</td>
                         <td>{u.role}</td>
-                        <td>{statusBadge(u.status)}</td>
+                        <td><span className={`chip ${u.status === 'Active' ? 'chip-green' : 'chip-gray'}`}>{u.status}</span></td>
                         <td>{u.owner}</td>
                         <td>{u.date}</td>
                         <td className="whitespace-nowrap">
-                          <button className="btn-outline" onClick={() => showToast('Edit user')}>
-                            Edit
-                          </button>
-                          <button
-                            className="btn-outline"
-                            onClick={() => showToast('User ' + (u.status === 'Active' ? 'disabled' : 'enabled'))}
-                          >
-                            {u.status === 'Active' ? 'Disable' : 'Enable'}
-                          </button>
-                          <button
-                            className="btn-blue"
-                            onClick={() => {
-                              setPermissionsModal(true);
-                              setSelectedUser(u.name);
-                            }}
-                          >
-                            Perms
-                          </button>
+                          <button className="btn-outline" onClick={() => { setSelectedUserData(u); setUserForm({ name: u.name, role: u.role, status: u.status }); setEditUserModal(true); }}>✎ Edit</button>
+                          <button className="btn-outline" onClick={() => toggleUserStatus(u.id)}>{u.status === 'Active' ? 'Disable' : 'Enable'}</button>
+                          <button className="btn-outline" onClick={() => deleteUser(u.id)}>🗑 Delete</button>
                         </td>
                       </tr>
                     ))}
@@ -2266,6 +2300,75 @@ export default function VOXA() {
                 </select>
               </div>
               <button className="w-full btn-primary py-3" onClick={updateTenant}>Update Tenant</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {createUserModal && (
+        <div className="modal-backdrop open" onClick={() => setCreateUserModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Create New User</h3>
+              <button onClick={() => setCreateUserModal(false)} className="text-slate-500">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium">Username *</label>
+                <input className="input" placeholder="e.g., John_Doe" value={userForm.name} onChange={(e) => setUserForm({...userForm, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Role *</label>
+                <select className="select" value={userForm.role} onChange={(e) => setUserForm({...userForm, role: e.target.value})}>
+                  <option>Agent</option>
+                  <option>Support Agent</option>
+                  <option>Sales Representative</option>
+                  <option>Account Manager</option>
+                  <option>Tenant Admin</option>
+                  <option>Support Manager</option>
+                  <option>Global Admin</option>
+                </select>
+              </div>
+              <button className="w-full btn-primary py-3" onClick={createUser}>Create User</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editUserModal && selectedUserData && (
+        <div className="modal-backdrop open" onClick={() => setEditUserModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Edit User {selectedUserData.name}</h3>
+              <button onClick={() => setEditUserModal(false)} className="text-slate-500">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium">Username</label>
+                <input className="input" value={userForm.name} onChange={(e) => setUserForm({...userForm, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Role</label>
+                <select className="select" value={userForm.role} onChange={(e) => setUserForm({...userForm, role: e.target.value})}>
+                  <option>Agent</option>
+                  <option>Support Agent</option>
+                  <option>Sales Representative</option>
+                  <option>Account Manager</option>
+                  <option>Tenant Admin</option>
+                  <option>Support Manager</option>
+                  <option>Global Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Status</label>
+                <select className="select" value={userForm.status} onChange={(e) => setUserForm({...userForm, status: e.target.value as 'Active' | 'Disabled'})}>
+                  <option>Active</option>
+                  <option>Disabled</option>
+                </select>
+              </div>
+              <button className="w-full btn-primary py-3" onClick={updateUser}>Update User</button>
             </div>
           </div>
         </div>
