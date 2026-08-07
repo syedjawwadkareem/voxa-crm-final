@@ -5,7 +5,7 @@
 // Nav items are filtered based on the user's permissions.
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Building2, Users, ShieldCheck, CreditCard, LogOut, X } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, ShieldCheck, CreditCard, LogOut, X, Phone } from 'lucide-react';
 import { authApi } from '@/lib/api';
 import { clearSession, getUser, hasPermission } from '@/lib/auth';
 import type { LucideIcon } from 'lucide-react';
@@ -24,6 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'admin-users', label: 'Staff Users',       href: '/admin/admin-users', icon: Users,         permission: 'users:read' },
   { key: 'roles', label: 'Roles & Permissions',     href: '/admin/roles',       icon: ShieldCheck,   permission: 'roles:read' },
   { key: 'plans', label: 'Billing Plans',           href: '/admin/plans',       icon: CreditCard,    permission: 'billing:update' },
+  { key: 'dialer', label: 'Dialer',                 href: '/admin/dialer',      icon: Phone },
 ];
 
 export function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {

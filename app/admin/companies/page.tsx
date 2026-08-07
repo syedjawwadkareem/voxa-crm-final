@@ -92,8 +92,8 @@ export default function AdminCompaniesPage() {
     }
   }, []);
 
-  useEffect(() => { 
-    fetchCompanies(); 
+  useEffect(() => {
+    fetchCompanies();
     fetchPlans();
   }, [fetchCompanies, fetchPlans]);
 
@@ -191,7 +191,7 @@ export default function AdminCompaniesPage() {
       <AdminHeader
         title="Companies"
         subtitle="Manage all client companies on the Voxa platform"
-        onMenuClick={() => {}}
+        onMenuClick={() => { }}
         actions={
           <PermissionGuard permission="companies:create">
             <button
@@ -216,7 +216,7 @@ export default function AdminCompaniesPage() {
             <input
               id="company-search"
               className="input max-w-xs pl-8"
-              placeholder="Search companies…"
+              placeholder="    Search companies…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -271,7 +271,7 @@ export default function AdminCompaniesPage() {
                               <UserCog size={11} strokeWidth={2} /> Update Tenant
                             </button>
                             {c.status !== 'active' && (
-                               <button
+                              <button
                                 className="btn-outline text-xs inline-flex items-center gap-1"
                                 style={{ color: '#166534', borderColor: '#166534' }}
                                 onClick={() => handleStatusChange(c, 'active')}
@@ -327,7 +327,7 @@ export default function AdminCompaniesPage() {
             {createStep === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                 <div className="text-sm text-slate-600 mb-4">Select the billing plan for this company. This will determine if they are prepaid or postpaid.</div>
-                
+
                 <div>
                   <label className="text-xs font-medium">Billing Model *</label>
                   <select
@@ -444,7 +444,7 @@ export default function AdminCompaniesPage() {
               {createStep > 1 ? (
                 <button type="button" className="btn-outline" onClick={() => setCreateStep(createStep - 1)}>Back</button>
               ) : <div></div>}
-              
+
               <button type="submit" disabled={createLoading || !createForm.planId} className="btn-primary">
                 {createStep < 3 ? 'Next' : (createLoading ? 'Creating…' : 'Create Company')}
               </button>

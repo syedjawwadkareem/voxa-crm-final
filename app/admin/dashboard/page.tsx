@@ -135,7 +135,7 @@ export default function AdminDashboardPage() {
           })}
         </div>
 
-        {/* Billing split mini-cards */}
+        {/* Billing split mini-cards
         <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
           <div className="card px-5 py-4 flex items-center gap-4">
             <div className="p-2.5 rounded-xl" style={{ background: '#eff6ff' }}>
@@ -159,7 +159,7 @@ export default function AdminDashboardPage() {
               <div className="text-slate-500 text-xs font-medium">Postpaid Plans</div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Pending alert */}
         {pending > 0 && (

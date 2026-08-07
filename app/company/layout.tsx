@@ -44,14 +44,14 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
     <div className="flex min-h-screen bg-[#f6f7f9]">
       <CompanySidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="flex-1 min-w-0 overflow-x-hidden">
-        <button
+        {/* <button
           className="fixed top-4 left-4 z-50 lg:hidden btn-outline shadow-md"
           onClick={() => setSidebarOpen(true)}
           aria-label="Open sidebar"
           id="company-mobile-menu-btn"
         >
           ☰
-        </button>
+        </button> */}
         {children}
       </main>
     </div>
