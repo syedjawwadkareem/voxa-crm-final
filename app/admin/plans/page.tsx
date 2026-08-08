@@ -9,6 +9,7 @@ import { Pencil, Trash2, Plus } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Modal } from '@/components/ui/Modal';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
+import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { billingApi } from '@/lib/api';
 import type { Plan } from '@/lib/types';
 
@@ -37,16 +38,18 @@ export default function AdminPlansPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<Partial<Plan>>(EMPTY_FORM);
   const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   // Edit modal
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Plan | null>(null);
   const [editForm, setEditForm] = useState<Partial<Plan>>(EMPTY_FORM);
   const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 2500);
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast(`${type}::${msg}`);
+    setTimeout(() => setToast(''), 3000);
   };
 
   const fetchPlans = useCallback(async () => {
@@ -68,14 +71,15 @@ export default function AdminPlansPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setCreateLoading(true);
+    setCreateError('');
     try {
       await billingApi.createPlan(createForm);
-      showToast(`Plan "${createForm.name}" created`);
+      showToast(`Plan "${createForm.name}" created`, 'success');
       setCreateForm(EMPTY_FORM);
       setCreateOpen(false);
       fetchPlans();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Create failed');
+      setCreateError(e instanceof Error ? e.message : 'Failed to create plan. Please try again.');
     } finally {
       setCreateLoading(false);
     }
@@ -92,13 +96,14 @@ export default function AdminPlansPage() {
     e.preventDefault();
     if (!editTarget) return;
     setEditLoading(true);
+    setEditError('');
     try {
       await billingApi.updatePlan(editTarget._id, editForm);
-      showToast('Plan updated');
+      showToast('Plan updated', 'success');
       setEditOpen(false);
       fetchPlans();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Update failed');
+      setEditError(e instanceof Error ? e.message : 'Failed to update plan. Please try again.');
     } finally {
       setEditLoading(false);
     }
@@ -109,10 +114,10 @@ export default function AdminPlansPage() {
     if (!confirm(`Are you sure you want to delete ${plan.name}?`)) return;
     try {
       await billingApi.deletePlan(plan._id);
-      showToast('Plan deleted');
+      showToast('Plan deleted', 'success');
       fetchPlans();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Delete failed');
+      showToast(e instanceof Error ? e.message : 'Delete failed', 'error');
     }
   }
 
@@ -290,8 +295,9 @@ export default function AdminPlansPage() {
       </div>
 
       {/* Create Modal */}
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create New Plan" maxWidth="560px">
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setCreateError(''); }} title="Create New Plan" maxWidth="560px">
         <form onSubmit={handleCreate} className="space-y-4">
+          <ErrorAlert message={createError} variant="error" theme="light" onDismiss={() => setCreateError('')} />
           {renderFormFields(createForm, setCreateForm)}
           <button type="submit" disabled={createLoading} className="w-full btn-primary py-2.5 mt-2">
             {createLoading ? 'Creating…' : 'Create Plan'}
@@ -300,8 +306,9 @@ export default function AdminPlansPage() {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title={`Edit Plan: ${editTarget?.name}`} maxWidth="560px">
+      <Modal open={editOpen} onClose={() => { setEditOpen(false); setEditError(''); }} title={`Edit Plan: ${editTarget?.name}`} maxWidth="560px">
         <form onSubmit={handleEdit} className="space-y-4">
+          <ErrorAlert message={editError} variant="error" theme="light" onDismiss={() => setEditError('')} />
           {renderFormFields(editForm, setEditForm)}
           <button type="submit" disabled={editLoading} className="w-full btn-primary py-2.5 mt-2">
             {editLoading ? 'Saving…' : 'Save Changes'}
@@ -310,7 +317,16 @@ export default function AdminPlansPage() {
       </Modal>
 
       {/* Toast */}
-      {toast && <div className="toast show">{toast}</div>}
+      {toast && (() => {
+        const isError = toast.startsWith('error::');
+        const isSuccess = toast.startsWith('success::');
+        const msg = toast.includes('::') ? toast.split('::').slice(1).join('::') : toast;
+        return (
+          <div className={`toast show ${isError ? 'toast-error' : isSuccess ? 'toast-success' : ''}`}>
+            {isError ? '✕ ' : isSuccess ? '✓ ' : ''}{msg}
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { CompanyHeader } from '@/components/company/CompanyHeader';
 import { Modal } from '@/components/ui/Modal';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
 import { PermissionCheckboxGrid } from '@/components/ui/PermissionCheckboxGrid';
+import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { rolesApi } from '@/lib/api';
 import type { Role, CreateRolePayload } from '@/lib/types';
 
@@ -24,14 +25,19 @@ export default function CompanyRolesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateRolePayload>(EMPTY_FORM);
   const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   // Edit
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Role | null>(null);
   const [editForm, setEditForm] = useState<CreateRolePayload>(EMPTY_FORM);
   const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast(`${type}::${msg}`);
+    setTimeout(() => setToast(''), 3000);
+  };
 
   const fetchRoles = useCallback(async () => {
     setLoading(true);
@@ -51,14 +57,15 @@ export default function CompanyRolesPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setCreateLoading(true);
+    setCreateError('');
     try {
       await rolesApi.companyCreate(createForm);
-      showToast(`Role "${createForm.name}" created`);
+      showToast(`Role "${createForm.name}" created`, 'success');
       setCreateOpen(false);
       setCreateForm(EMPTY_FORM);
       fetchRoles();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Create failed');
+      setCreateError(e instanceof Error ? e.message : 'Failed to create role. Please try again.');
     } finally {
       setCreateLoading(false);
     }
@@ -74,13 +81,14 @@ export default function CompanyRolesPage() {
     e.preventDefault();
     if (!editTarget) return;
     setEditLoading(true);
+    setEditError('');
     try {
       await rolesApi.companyUpdate(editTarget._id, editForm);
-      showToast('Role updated');
+      showToast('Role updated', 'success');
       setEditOpen(false);
       fetchRoles();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Update failed');
+      setEditError(e instanceof Error ? e.message : 'Failed to update role. Please try again.');
     } finally {
       setEditLoading(false);
     }
@@ -90,10 +98,10 @@ export default function CompanyRolesPage() {
     if (!confirm(`Delete role "${role.name}"? This cannot be undone.`)) return;
     try {
       await rolesApi.companyDelete(role._id);
-      showToast('Role deleted');
+      showToast('Role deleted', 'success');
       fetchRoles();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Delete failed');
+      showToast(e instanceof Error ? e.message : 'Delete failed', 'error');
     }
   }
 
@@ -176,8 +184,9 @@ export default function CompanyRolesPage() {
       </div>
 
       {/* Create Modal */}
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create Company Role" maxWidth="560px">
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setCreateError(''); }} title="Create Company Role" maxWidth="560px">
         <form onSubmit={handleCreate} className="space-y-4">
+          <ErrorAlert message={createError} variant="error" theme="light" onDismiss={() => setCreateError('')} />
           <div>
             <label className="text-xs font-medium">Role Name *</label>
             <input className="input mt-1" required value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. Sales Agent" />
@@ -202,8 +211,9 @@ export default function CompanyRolesPage() {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title={`Edit Role: ${editTarget?.name}`} maxWidth="560px">
+      <Modal open={editOpen} onClose={() => { setEditOpen(false); setEditError(''); }} title={`Edit Role: ${editTarget?.name}`} maxWidth="560px">
         <form onSubmit={handleEdit} className="space-y-4">
+          <ErrorAlert message={editError} variant="error" theme="light" onDismiss={() => setEditError('')} />
           <div>
             <label className="text-xs font-medium">Role Name *</label>
             <input className="input mt-1" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
@@ -227,7 +237,16 @@ export default function CompanyRolesPage() {
         </form>
       </Modal>
 
-      {toast && <div className="toast show">{toast}</div>}
+      {toast && (() => {
+        const isError = toast.startsWith('error::');
+        const isSuccess = toast.startsWith('success::');
+        const msg = toast.includes('::') ? toast.split('::').slice(1).join('::') : toast;
+        return (
+          <div className={`toast show ${isError ? 'toast-error' : isSuccess ? 'toast-success' : ''}`}>
+            {isError ? '✕ ' : isSuccess ? '✓ ' : ''}{msg}
+          </div>
+        );
+      })()}
     </div>
   );
 }

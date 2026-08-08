@@ -10,6 +10,7 @@ import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
+import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { companiesApi, billingApi } from '@/lib/api';
 import type { Company, CreateCompanyPayload, CompanyStatus, BillingModel, Plan, TenantInfo } from '@/lib/types';
 
@@ -46,6 +47,7 @@ export default function AdminCompaniesPage() {
   const [createStep, setCreateStep] = useState(1);
   const [createForm, setCreateForm] = useState<CreateCompanyPayload>(EMPTY_FORM);
   const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState('');
   const [tempPassword, setTempPassword] = useState('');
 
   // Edit modal
@@ -53,6 +55,7 @@ export default function AdminCompaniesPage() {
   const [editTarget, setEditTarget] = useState<Company | null>(null);
   const [editName, setEditName] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
 
   // Update Tenant modal
   const [tenantOpen, setTenantOpen] = useState(false);
@@ -61,10 +64,14 @@ export default function AdminCompaniesPage() {
     tenant_id: '', region: '', province: '', address: '', contact_name: '', contact_email: ''
   });
   const [tenantLoading, setTenantLoading] = useState(false);
+  const [tenantError, setTenantError] = useState('');
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast(msg);
-    setTimeout(() => setToast(''), 2500);
+    // store type on a data attr via class trick — we'll encode it in the string
+    // Actually we just store a prefixed string: ':type:message'
+    setToast(`${type}::${msg}`);
+    setTimeout(() => setToast(''), 3000);
   };
 
   const fetchCompanies = useCallback(async () => {
@@ -106,14 +113,15 @@ export default function AdminCompaniesPage() {
     }
 
     setCreateLoading(true);
+    setCreateError('');
     try {
       const res = await companiesApi.create(createForm);
       setTempPassword(res.data?.tempPassword ?? '');
-      showToast(`Company "${createForm.name}" created`);
+      showToast(`Company "${createForm.name}" created`, 'success');
       setCreateForm(EMPTY_FORM);
       fetchCompanies();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Create failed');
+      setCreateError(e instanceof Error ? e.message : 'Failed to create company. Please try again.');
     } finally {
       setCreateLoading(false);
     }
@@ -134,13 +142,14 @@ export default function AdminCompaniesPage() {
     e.preventDefault();
     if (!editTarget) return;
     setEditLoading(true);
+    setEditError('');
     try {
       await companiesApi.update(editTarget._id, { name: editName });
-      showToast('Company updated');
+      showToast('Company updated', 'success');
       setEditOpen(false);
       fetchCompanies();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Update failed');
+      setEditError(e instanceof Error ? e.message : 'Failed to update company. Please try again.');
     } finally {
       setEditLoading(false);
     }
@@ -159,13 +168,14 @@ export default function AdminCompaniesPage() {
     e.preventDefault();
     if (!tenantTarget) return;
     setTenantLoading(true);
+    setTenantError('');
     try {
       await companiesApi.updateTenant(tenantTarget._id, tenantForm);
-      showToast('Tenant info updated (old record soft-deleted)');
+      showToast('Tenant info updated successfully', 'success');
       setTenantOpen(false);
       fetchCompanies();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Tenant update failed');
+      setTenantError(e instanceof Error ? e.message : 'Failed to update tenant. Please try again.');
     } finally {
       setTenantLoading(false);
     }
@@ -175,10 +185,10 @@ export default function AdminCompaniesPage() {
   async function handleStatusChange(company: Company, status: CompanyStatus) {
     try {
       await companiesApi.updateStatus(company._id, status);
-      showToast(`Status updated to ${status}`);
+      showToast(`Status updated to ${status}`, 'success');
       fetchCompanies();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Status update failed');
+      showToast(e instanceof Error ? e.message : 'Status update failed', 'error');
     }
   }
 
@@ -301,7 +311,7 @@ export default function AdminCompaniesPage() {
       </div>
 
       {/* Create Modal (Wizard) */}
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title={`Create New Company (Step ${createStep} of 3)`} maxWidth="600px">
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setCreateError(''); }} title={`Create New Company (Step ${createStep} of 3)`} maxWidth="600px">
         {tempPassword ? (
           <div className="space-y-4">
             <div
@@ -323,6 +333,7 @@ export default function AdminCompaniesPage() {
           </div>
         ) : (
           <form onSubmit={handleCreate} className="space-y-4">
+            <ErrorAlert message={createError} variant="error" theme="light" onDismiss={() => setCreateError('')} />
             {/* STEP 1: BILLING */}
             {createStep === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -454,8 +465,9 @@ export default function AdminCompaniesPage() {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title={`Edit Company: ${editTarget?.name}`}>
+      <Modal open={editOpen} onClose={() => { setEditOpen(false); setEditError(''); }} title={`Edit Company: ${editTarget?.name}`}>
         <form onSubmit={handleEdit} className="space-y-4">
+          <ErrorAlert message={editError} variant="error" theme="light" onDismiss={() => setEditError('')} />
           <div>
             <label className="text-xs font-medium">Company Name *</label>
             <input className="input mt-1" required value={editName} onChange={(e) => setEditName(e.target.value)} />
@@ -467,8 +479,9 @@ export default function AdminCompaniesPage() {
       </Modal>
 
       {/* Update Tenant Modal */}
-      <Modal open={tenantOpen} onClose={() => setTenantOpen(false)} title={`Update Tenant: ${tenantTarget?.name}`} maxWidth="500px">
+      <Modal open={tenantOpen} onClose={() => { setTenantOpen(false); setTenantError(''); }} title={`Update Tenant: ${tenantTarget?.name}`} maxWidth="500px">
         <form onSubmit={handleTenantUpdate} className="space-y-4">
+          <ErrorAlert message={tenantError} variant="error" theme="light" onDismiss={() => setTenantError('')} />
           <div className="text-sm text-slate-600 mb-4">
             This will deactivate the current tenant info and create a new active record.
           </div>
@@ -503,7 +516,16 @@ export default function AdminCompaniesPage() {
       </Modal>
 
       {/* Toast */}
-      {toast && <div className="toast show">{toast}</div>}
+      {toast && (() => {
+        const isError = toast.startsWith('error::');
+        const isSuccess = toast.startsWith('success::');
+        const msg = toast.includes('::') ? toast.split('::').slice(1).join('::') : toast;
+        return (
+          <div className={`toast show ${isError ? 'toast-error' : isSuccess ? 'toast-success' : ''}`}>
+            {isError ? '✕ ' : isSuccess ? '✓ ' : ''}{msg}
+          </div>
+        );
+      })()}
     </div>
   );
 }

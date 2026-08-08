@@ -10,6 +10,7 @@ import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
+import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { adminUsersApi, rolesApi } from '@/lib/api';
 import type { AdminUser, Role, CreateAdminUserPayload } from '@/lib/types';
 
@@ -27,14 +28,20 @@ export default function AdminUsersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateAdminUserPayload>(EMPTY_FORM);
   const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   // Edit
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<AdminUser | null>(null);
   const [editForm, setEditForm] = useState({ fullName: '', roleId: '' });
   const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    const prefixed = `${type}::${msg}`;
+    setToast(prefixed);
+    setTimeout(() => setToast(''), 3000);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -57,14 +64,15 @@ export default function AdminUsersPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setCreateLoading(true);
+    setCreateError('');
     try {
       await adminUsersApi.create({ ...createForm, roleId: createForm.roleId || undefined });
-      showToast('Staff member created');
+      showToast('Staff member created', 'success');
       setCreateOpen(false);
       setCreateForm(EMPTY_FORM);
       fetchData();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Create failed');
+      setCreateError(e instanceof Error ? e.message : 'Failed to create staff member. Please try again.');
     } finally {
       setCreateLoading(false);
     }
@@ -83,14 +91,15 @@ export default function AdminUsersPage() {
     e.preventDefault();
     if (!editTarget) return;
     setEditLoading(true);
+    setEditError('');
     try {
       await adminUsersApi.update(editTarget._id, { fullName: editForm.fullName });
       if (editForm.roleId) await adminUsersApi.assignRole(editTarget._id, editForm.roleId);
-      showToast('User updated');
+      showToast('User updated', 'success');
       setEditOpen(false);
       fetchData();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Update failed');
+      setEditError(e instanceof Error ? e.message : 'Failed to update user. Please try again.');
     } finally {
       setEditLoading(false);
     }
@@ -100,10 +109,10 @@ export default function AdminUsersPage() {
     if (!confirm(`Deactivate "${user.fullName}"?`)) return;
     try {
       await adminUsersApi.deactivate(user._id);
-      showToast('User deactivated');
+      showToast('User deactivated', 'success');
       fetchData();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Deactivation failed');
+      showToast(e instanceof Error ? e.message : 'Deactivation failed', 'error');
     }
   }
 
@@ -229,8 +238,9 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Create Modal */}
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Add Staff Member">
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setCreateError(''); }} title="Add Staff Member">
         <form onSubmit={handleCreate} className="space-y-3">
+          <ErrorAlert message={createError} variant="error" theme="light" onDismiss={() => setCreateError('')} />
           <div>
             <label className="text-xs font-medium">Full Name *</label>
             <input className="input mt-1" required value={createForm.fullName} onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })} placeholder="John Doe" />
@@ -257,8 +267,9 @@ export default function AdminUsersPage() {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title={`Edit: ${editTarget?.fullName}`}>
+      <Modal open={editOpen} onClose={() => { setEditOpen(false); setEditError(''); }} title={`Edit: ${editTarget?.fullName}`}>
         <form onSubmit={handleEdit} className="space-y-3">
+          <ErrorAlert message={editError} variant="error" theme="light" onDismiss={() => setEditError('')} />
           <div>
             <label className="text-xs font-medium">Full Name *</label>
             <input className="input mt-1" required value={editForm.fullName} onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })} />
@@ -276,7 +287,16 @@ export default function AdminUsersPage() {
         </form>
       </Modal>
 
-      {toast && <div className="toast show">{toast}</div>}
+      {toast && (() => {
+        const isError = toast.startsWith('error::');
+        const isSuccess = toast.startsWith('success::');
+        const msg = toast.includes('::') ? toast.split('::').slice(1).join('::') : toast;
+        return (
+          <div className={`toast show ${isError ? 'toast-error' : isSuccess ? 'toast-success' : ''}`}>
+            {isError ? '✕ ' : isSuccess ? '✓ ' : ''}{msg}
+          </div>
+        );
+      })()}
     </div>
   );
 }
