@@ -39,14 +39,21 @@ async function request<T>(
 
   // Auto-refresh on 401
   if (res.status === 401 && retry) {
+    if (path === '/auth/login') {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json?.message ?? 'Invalid email or password');
+    }
+
     const refreshed = await tryRefresh();
     if (refreshed) return request<T>(path, options, false);
     clearSession();
     // Redirect to whichever login applies
     if (typeof window !== 'undefined') {
       const href = window.location.pathname;
-      const portal = href.startsWith('/admin') ? '/admin/login' : '/company/login';
-      window.location.href = portal;
+      if (!href.endsWith('/login')) {
+        const portal = href.startsWith('/admin') ? '/admin/login' : '/company/login';
+        window.location.href = portal;
+      }
     }
     throw new Error('Session expired');
   }
