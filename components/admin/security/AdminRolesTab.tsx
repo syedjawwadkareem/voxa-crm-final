@@ -6,7 +6,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Pencil, Trash2, Plus } from 'lucide-react';
-import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Modal } from '@/components/ui/Modal';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
 import { PermissionCheckboxGrid } from '@/components/ui/PermissionCheckboxGrid';
@@ -16,7 +15,7 @@ import type { Role, CreateRolePayload } from '@/lib/types';
 
 const EMPTY_FORM: CreateRolePayload = { name: '', permissions: [], description: '' };
 
-export default function AdminRolesPage() {
+export function AdminRolesTab() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
@@ -109,20 +108,19 @@ export default function AdminRolesPage() {
 
   return (
     <div>
-      <AdminHeader
-        title="Roles & Permissions"
-        subtitle="Manage Voxa internal staff roles"
-        onMenuClick={() => {}}
-        actions={
-          <PermissionGuard permission="roles:create">
-            <button id="create-admin-role-btn" className="btn-primary inline-flex items-center gap-1.5" onClick={() => setCreateOpen(true)}>
-              <Plus size={15} strokeWidth={2} /> New Role
-            </button>
-          </PermissionGuard>
-        }
-      />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Roles & Permissions</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Manage Voxa internal staff roles</p>
+        </div>
+        <PermissionGuard permission="roles:create">
+          <button id="create-admin-role-btn" className="btn-primary inline-flex items-center gap-1.5" onClick={() => setCreateOpen(true)}>
+            <Plus size={15} strokeWidth={2} /> New Role
+          </button>
+        </PermissionGuard>
+      </div>
 
-      <div className="px-6 py-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
         {error && <div className="chip chip-red mb-4 px-3 py-2 rounded-lg">{error}</div>}
 
         {loading ? (

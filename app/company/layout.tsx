@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { isAuthenticated, getPortal } from '@/lib/auth';
 import { CompanySidebar } from '@/components/company/CompanySidebar';
+import { DialerModal } from '@/components/ui/DialerModal';
 import '@/app/voxa.css';
 
 export default function CompanyLayout({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
           ☰
         </button> */}
         {children}
+        <DialerModal />
       </main>
     </div>
   );

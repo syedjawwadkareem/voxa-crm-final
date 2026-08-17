@@ -6,7 +6,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Pencil, UserX, UserPlus, Search } from 'lucide-react';
-import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
@@ -16,7 +15,7 @@ import type { AdminUser, Role, CreateAdminUserPayload } from '@/lib/types';
 
 const EMPTY_FORM: CreateAdminUserPayload = { email: '', fullName: '', password: '', roleId: '' };
 
-export default function AdminUsersPage() {
+export function AdminUsersTab() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,20 +135,19 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <AdminHeader
-        title="Staff Users"
-        subtitle="Manage Voxa internal team members"
-        onMenuClick={() => {}}
-        actions={
-          <PermissionGuard permission="users:create">
-            <button id="create-admin-user-btn" className="btn-primary inline-flex items-center gap-1.5" onClick={() => setCreateOpen(true)}>
-              <UserPlus size={15} strokeWidth={2} /> Add Staff
-            </button>
-          </PermissionGuard>
-        }
-      />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Staff Users</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Manage Voxa internal team members</p>
+        </div>
+        <PermissionGuard permission="users:create">
+          <button id="create-admin-user-btn" className="btn-primary inline-flex items-center gap-1.5" onClick={() => setCreateOpen(true)}>
+            <UserPlus size={15} strokeWidth={2} /> Add Staff
+          </button>
+        </PermissionGuard>
+      </div>
 
-      <div className="px-6 py-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
         {error && <div className="chip chip-red mb-4 px-3 py-2 rounded-lg">{error}</div>}
 
         <div className="flex items-center gap-3 mb-4">

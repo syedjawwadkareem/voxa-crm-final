@@ -186,3 +186,147 @@ export const rolesApi = {
   companyUpdate: (id: string, payload: Partial<CreateRolePayload>) => api.patch<ApiSuccess<Role>>(`/roles/company/${id}`, payload),
   companyDelete: (id: string) => api.delete<ApiSuccess<null>>(`/roles/company/${id}`),
 };
+
+// ── Integrations endpoints ─────────────────────────────────────────────────────
+
+export type PlatformType = 'meta' | 'whatsapp' | 'sms' | 'email';
+
+export interface MetaCredentials {
+  metaAppId?: string;
+  metaAppSecret?: string;
+  metaPageAccessToken?: string;
+  metaPageId?: string;
+  metaAdAccountId?: string;
+}
+
+export interface PlatformIntegration {
+  _id: string;
+  platformType: PlatformType;
+  status: 'active' | 'disconnected' | 'error';
+  leadsReceivedCount: number;
+  lastSyncAt?: string;
+  connectedAt?: string;
+  credentials: MetaCredentials;
+}
+
+export interface MetaForm {
+  id: string;
+  name: string;
+  status: string;
+  created_time: string;
+  leads_count: number;
+  created_via_voxa: boolean;
+}
+
+export interface MetaLead {
+  _id: string;
+  fullName: string;
+  email: string;
+  phoneE164: string;
+  globalStatus: string;
+  createdAt: string;
+  leadListId?: { name?: string };
+}
+
+export interface MetaFormLead {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  created_time: string;
+  raw: Record<string, string>;
+}
+
+export const integrationsApi = {
+  getConfig: (platformType: PlatformType) =>
+    api.get<{ success: boolean; data: PlatformIntegration | null }>(`/integrations/config/${platformType}`),
+
+  saveConfig: (platformType: PlatformType, payload: MetaCredentials) =>
+    api.post<{ success: boolean; message: string; data: PlatformIntegration }>(`/integrations/config/${platformType}`, payload),
+
+  deleteConfig: (platformType: PlatformType) =>
+    api.delete<{ success: boolean; message: string }>(`/integrations/config/${platformType}`),
+
+  getMetaForms: () =>
+    api.get<{ success: boolean; forms: MetaForm[] }>('/integrations/meta/forms'),
+
+  createMetaForm: (payload: { name: string; questions: object[] }) =>
+    api.post<{ success: boolean; form_id: string }>('/integrations/meta/forms', payload),
+
+  getMetaLeads: () =>
+    api.get<{ success: boolean; leads: MetaLead[] }>('/integrations/meta/leads'),
+
+  getLeadsByFormId: (formId: string) =>
+    api.get<{ success: boolean; leads: MetaFormLead[] }>(`/integrations/meta/forms/${formId}/leads`),
+};
+
+// ── Leads endpoints ───────────────────────────────────────────────────────────
+
+export interface CapturedLead {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  form_id: string | null;
+  form_name: string | null;
+  lead_status: string;
+  assigned_agent: string | null;
+  created_at: string;
+}
+
+export interface LeadsStats {
+  total: number;
+  new: number;
+  converted: number;
+  status: string;
+}
+
+export const leadsApi = {
+  getAll: () =>
+    api.get<{ success: boolean; leads: CapturedLead[] }>('/leads'),
+
+  getStats: () =>
+    api.get<{ success: boolean; stats: LeadsStats }>('/leads/stats'),
+};
+
+// ── IVR Campaigns endpoints ────────────────────────────────────────────────────
+
+export interface IvrCampaign {
+  _id: string;
+  name: string;
+  type: 'broadcast' | 'dtmf' | 'Broadcast' | 'DTMF';
+  audioFile?: string;
+  csvFile?: string;
+  description?: string;
+  status: 'pending' | 'active' | 'completed' | 'failed';
+  schedule?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface CreateIvrCampaignPayload {
+  name: string;
+  type: string;
+  audioFile?: string;
+  csvFile?: string;
+  description?: string;
+  schedule?: string;
+}
+
+export const ivrCampaignsApi = {
+  list: () => api.get<{ success: boolean; data: IvrCampaign[] }>('/ivr-campaigns'),
+  create: (payload: CreateIvrCampaignPayload) =>
+    api.post<{ success: boolean; message: string; data: IvrCampaign }>('/ivr-campaigns', payload),
+};
+
+// ── Orders endpoints ─────────────────────────────────────────────────────────
+
+import type { Order, CreateOrderPayload } from './types';
+
+export const ordersApi = {
+  list: () => api.get<ApiSuccess<Order[]>>('/orders'),
+  getById: (id: string) => api.get<ApiSuccess<Order>>(`/orders/${id}`),
+  create: (payload: CreateOrderPayload) => api.post<ApiSuccess<Order>>('/orders', payload),
+  update: (id: string, payload: Partial<CreateOrderPayload>) => api.patch<ApiSuccess<Order>>(`/orders/${id}`, payload),
+  delete: (id: string) => api.delete<ApiSuccess<null>>(`/orders/${id}`),
+};

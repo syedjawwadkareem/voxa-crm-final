@@ -5,7 +5,7 @@
 // Portal = "customer". Nav items filtered by user permissions.
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, ShieldCheck, LogOut, X } from 'lucide-react';
+import { LayoutDashboard, Users, ShieldCheck, LogOut, X, PhoneCall, Layers, ClipboardList } from 'lucide-react';
 import { authApi } from '@/lib/api';
 import { clearSession, getUser, hasPermission } from '@/lib/auth';
 import type { LucideIcon } from 'lucide-react';
@@ -19,9 +19,14 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', href: '/company/dashboard', icon: LayoutDashboard },
-  { key: 'users',     label: 'Users',     href: '/company/users',     icon: Users,      permission: 'users:read' },
-  { key: 'roles',     label: 'Roles',     href: '/company/roles',     icon: ShieldCheck, permission: 'roles:read' },
+  { key: 'dashboard',    label: 'Dashboard',    href: '/company/dashboard',    icon: LayoutDashboard },
+  { key: 'users',        label: 'Users',        href: '/company/users',        icon: Users,       permission: 'users:read' },
+  { key: 'roles',        label: 'Roles',        href: '/company/roles',        icon: ShieldCheck, permission: 'roles:read' },
+  { key: 'omnichannel',  label: 'Omnichannel',  href: '/company/omnichannel',  icon: Layers },
+  { key: 'ivr',          label: 'IVR & Campaigns', href: '/company/ivr',       icon: PhoneCall },
+  { key: 'logs',         label: 'Logs',         href: '/company/logs',         icon: PhoneCall },
+  { key: 'leads',        label: 'Lead Management', href: '/company/leads',     icon: ClipboardList },
+  { key: 'orders',       label: 'Order Management', href: '/company/orders',   icon: ClipboardList },
 ];
 
 export function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -29,9 +34,19 @@ export function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; onClose: 
   const router = useRouter();
   const user = getUser();
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.permission || hasPermission(item.permission),
-  );
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    // Permission check
+    if (item.permission && !hasPermission(item.permission)) return false;
+    
+    // Business Type check
+    if (item.key === 'orders') {
+      return user?.businessType === 'ecommerce';
+    }
+    if (item.key === 'leads') {
+      return user?.businessType !== 'ecommerce';
+    }
+    return true;
+  });
 
   async function handleLogout() {
     try { await authApi.logout(); } catch { }

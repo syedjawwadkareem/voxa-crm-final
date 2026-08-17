@@ -16,6 +16,7 @@ import type { Company, CreateCompanyPayload, CompanyStatus, BillingModel, Plan, 
 
 const EMPTY_FORM: CreateCompanyPayload = {
   name: '',
+  businessType: 'other',
   billingModel: 'prepaid',
   adminEmail: '',
   adminFullName: '',
@@ -413,6 +414,15 @@ export default function AdminCompaniesPage() {
                 <div className="col-span-2">
                   <label className="text-xs font-medium">Company Name *</label>
                   <input className="input mt-1" required value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Acme Corp" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs font-medium">Business Type *</label>
+                  <select className="select mt-1" required value={createForm.businessType} onChange={(e) => setCreateForm({ ...createForm, businessType: e.target.value })}>
+                    <option value="ecommerce">Ecommerce</option>
+                    <option value="hospital">Hospital</option>
+                    <option value="restaurant">Restaurant</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs font-medium">Admin Email *</label>
