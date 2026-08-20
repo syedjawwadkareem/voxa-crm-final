@@ -1,48 +1,56 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
-import { api } from '@/lib/api';
+import { RefreshCw, Eye } from 'lucide-react';
+import { ivrCampaignsApi } from '@/lib/api';
 
-interface Campaign {
-  _id: string;
+// Shape returned by GET /ivr-campaigns/obd (parsed from OBD CMS HTML table)
+interface ObdCampaign {
+  id: string;
   name: string;
-  createdBy: string;
+  user: string;
   type: string;
   status: string;
   schedule: string;
-  createdAt: string;
 }
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const min = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
-  } catch {
-    return '-';
-  }
+interface LocalCampaign {
+  _id: string;
+  obdCampaignId?: string;
 }
 
-export function IVRCampaignList({ onCreateClick }: { onCreateClick: () => void }) {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+function statusBadge(status: string) {
+  const s = status.toLowerCase();
+  if (s === 'completed' || s === 'complete') return 'bg-emerald-100 text-emerald-700';
+  if (s === 'active'    || s === 'running')  return 'bg-blue-100 text-blue-700';
+  if (s === 'failed'    || s === 'error')    return 'bg-red-100 text-red-700';
+  return 'bg-amber-100 text-amber-700';
+}
+
+export function IVRCampaignList({
+  onCreateClick,
+  onViewClick,
+}: {
+  onCreateClick: () => void;
+  onViewClick: (localId: string) => void;
+}) {
+  const [campaigns, setCampaigns] = useState<ObdCampaign[]>([]);
+  const [localCampaigns, setLocalCampaigns] = useState<LocalCampaign[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
 
   const fetchCampaigns = async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await api.get<{ success: boolean; data: Campaign[] }>('/ivr-campaigns');
-      setCampaigns(data.data || []);
+      const [obdData, localData] = await Promise.all([
+        ivrCampaignsApi.listObd(),
+        ivrCampaignsApi.list(),
+      ]);
+      setCampaigns((obdData.data as ObdCampaign[]) || []);
+      setLocalCampaigns((localData.data as LocalCampaign[]) || []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load campaigns');
+      setError(err instanceof Error ? err.message : 'Failed to load OBD campaigns');
     } finally {
       setLoading(false);
     }
@@ -52,12 +60,18 @@ export function IVRCampaignList({ onCreateClick }: { onCreateClick: () => void }
     fetchCampaigns();
   }, []);
 
+  /** Find the local MongoDB _id for a given OBD campaign id */
+  const findLocalId = (obdId: string): string | null => {
+    const match = localCampaigns.find(c => c.obdCampaignId === obdId);
+    return match?._id ?? null;
+  };
+
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-lg font-bold text-slate-800">Campaign List</h2>
-          <p className="text-sm text-slate-500">View all your IVR and broadcast campaigns.</p>
+          <p className="text-sm text-slate-500">Live campaigns from OBD CMS.</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -98,43 +112,52 @@ export function IVRCampaignList({ onCreateClick }: { onCreateClick: () => void }
                 <td colSpan={7} className="px-4 py-12 text-center">
                   <div className="flex flex-col items-center gap-2 text-slate-400">
                     <RefreshCw size={20} className="animate-spin" />
-                    <span className="text-sm">Loading campaigns...</span>
+                    <span className="text-sm">Loading campaigns from OBD CMS...</span>
                   </div>
                 </td>
               </tr>
             ) : campaigns.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
-                  No campaigns found. Click <span className="font-semibold text-indigo-600 cursor-pointer" onClick={onCreateClick}>Create Campaign</span> to get started.
+                  No campaigns found on OBD CMS. Click{' '}
+                  <span className="font-semibold text-indigo-600 cursor-pointer" onClick={onCreateClick}>
+                    Create Campaign
+                  </span>{' '}
+                  to get started.
                 </td>
               </tr>
             ) : (
-              campaigns.map((camp, index) => (
-                <tr key={camp._id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-3 text-sm text-slate-500">{index + 1}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-slate-800">{camp.name}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{camp.createdBy || 'admin'}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600 lowercase">{camp.type}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      camp.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                      camp.status === 'active'    ? 'bg-blue-100 text-blue-700' :
-                      camp.status === 'failed'    ? 'bg-red-100 text-red-700' :
-                                                    'bg-amber-100 text-amber-700'
-                    }`}>
-                      {camp.status || 'pending'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-500">
-                    {formatDate(camp.schedule || camp.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors">
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))
+              campaigns.map((camp, index) => {
+                const localId = findLocalId(camp.id);
+                return (
+                  <tr key={camp.id || index} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-3 text-sm text-slate-500">{camp.id || index + 1}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-800">{camp.name}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500">{camp.user || 'admin'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600 capitalize">{camp.type}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge(camp.status)}`}>
+                        {camp.status || 'pending'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-500">{camp.schedule || '-'}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {localId ? (
+                        <button
+                          id={`view-campaign-${camp.id}`}
+                          onClick={() => onViewClick(localId)}
+                          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                        >
+                          <Eye size={12} />
+                          View
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No local record</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

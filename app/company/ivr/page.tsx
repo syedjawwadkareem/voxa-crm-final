@@ -4,10 +4,19 @@ import { useState } from 'react';
 import { CompanyHeader } from '@/components/company/CompanyHeader';
 import { IVRCampaignList } from '@/components/company/ivr/IVRCampaignList';
 import { CampaignBuilder } from '@/components/company/ivr/CampaignBuilder';
+import { CampaignDetail } from '@/components/company/ivr/CampaignDetail';
 import { List, Plus } from 'lucide-react';
 
+type ActiveTab = 'list' | 'create' | 'detail';
+
 export default function IVRPage() {
-  const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('list');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+
+  const handleViewClick = (localId: string) => {
+    setSelectedCampaignId(localId);
+    setActiveTab('detail');
+  };
 
   return (
     <div>
@@ -18,35 +27,50 @@ export default function IVRPage() {
       />
 
       <div className="p-6 max-w-7xl mx-auto">
-        <div className="flex border-b border-slate-200 mb-6">
-          <button
-            className={`flex items-center gap-2 px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
-              activeTab === 'list'
-                ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-            }`}
-            onClick={() => setActiveTab('list')}
-          >
-            <List size={16} />
-            Campaign List
-          </button>
-          <button
-            className={`flex items-center gap-2 px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
-              activeTab === 'create'
-                ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-            }`}
-            onClick={() => setActiveTab('create')}
-          >
-            <Plus size={16} />
-            Create Campaign
-          </button>
-        </div>
+        {/* Tab bar — hidden when viewing detail */}
+        {activeTab !== 'detail' && (
+          <div className="flex border-b border-slate-200 mb-6">
+            <button
+              className={`flex items-center gap-2 px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                activeTab === 'list'
+                  ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+              onClick={() => setActiveTab('list')}
+            >
+              <List size={16} />
+              Campaign List
+            </button>
+            <button
+              className={`flex items-center gap-2 px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                activeTab === 'create'
+                  ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+              onClick={() => setActiveTab('create')}
+            >
+              <Plus size={16} />
+              Create Campaign
+            </button>
+          </div>
+        )}
 
-        {activeTab === 'list' ? (
-          <IVRCampaignList onCreateClick={() => setActiveTab('create')} />
-        ) : (
+        {activeTab === 'list' && (
+          <IVRCampaignList
+            onCreateClick={() => setActiveTab('create')}
+            onViewClick={handleViewClick}
+          />
+        )}
+
+        {activeTab === 'create' && (
           <CampaignBuilder onSuccess={() => setActiveTab('list')} />
+        )}
+
+        {activeTab === 'detail' && selectedCampaignId && (
+          <CampaignDetail
+            campaignId={selectedCampaignId}
+            onBack={() => setActiveTab('list')}
+          />
         )}
       </div>
     </div>

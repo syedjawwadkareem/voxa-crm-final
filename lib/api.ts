@@ -25,8 +25,11 @@ async function request<T>(
   retry = true,
 ): Promise<T> {
   const token = getAccessToken();
+  const isFormData = options.body instanceof FormData;
+
+  // Do NOT set Content-Type for FormData — browser sets it with the boundary automatically
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as Record<string, string>),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -34,7 +37,11 @@ async function request<T>(
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: options.body !== undefined
+      ? isFormData
+        ? (options.body as FormData)
+        : JSON.stringify(options.body)
+      : undefined,
   });
 
   // Auto-refresh on 401
@@ -92,10 +99,11 @@ async function tryRefresh(): Promise<boolean> {
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 export const api = {
-  get: <T>(path: string) => request<T>(path, { method: 'GET' }),
-  post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body }),
-  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  get:      <T>(path: string) => request<T>(path, { method: 'GET' }),
+  post:     <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body }),
+  postForm: <T>(path: string, body: FormData) => request<T>(path, { method: 'POST', body }),
+  patch:    <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body }),
+  delete:   <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
 // ── Auth endpoints ────────────────────────────────────────────────────────────
@@ -313,10 +321,23 @@ export interface CreateIvrCampaignPayload {
   schedule?: string;
 }
 
+export interface DtmfOption {
+  digit: string;
+  option_text: string;
+  reply_audio: string;
+}
+
 export const ivrCampaignsApi = {
-  list: () => api.get<{ success: boolean; data: IvrCampaign[] }>('/ivr-campaigns'),
-  create: (payload: CreateIvrCampaignPayload) =>
+  list:      () => api.get<{ success: boolean; data: IvrCampaign[] }>('/ivr-campaigns'),
+  listObd:   () => api.get<{ success: boolean; data: unknown[] }>('/ivr-campaigns/obd'),
+  getById:   (id: string) => api.get<{ success: boolean; data: IvrCampaign }>(`/ivr-campaigns/${id}`),
+  getObdDetail: (id: string) => api.get<{ success: boolean; data: any }>(`/ivr-campaigns/${id}/obd-detail`),
+  start:     (id: string) => api.get<{ success: boolean; message: string }>(`/ivr-campaigns/${id}/start`),
+  create:    (payload: CreateIvrCampaignPayload) =>
     api.post<{ success: boolean; message: string; data: IvrCampaign }>('/ivr-campaigns', payload),
+  /** Use this overload when submitting with a CSV file (multipart/form-data) */
+  createWithFile: (formData: FormData) =>
+    api.postForm<{ success: boolean; message: string; data: IvrCampaign }>('/ivr-campaigns', formData),
 };
 
 // ── Orders endpoints ─────────────────────────────────────────────────────────
