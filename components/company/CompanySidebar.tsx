@@ -25,7 +25,8 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'omnichannel',  label: 'Omnichannel',  href: '/company/omnichannel',  icon: Layers },
   { key: 'ivr',          label: 'IVR & Campaigns', href: '/company/ivr',       icon: PhoneCall },
   { key: 'logs',         label: 'Logs',         href: '/company/logs',         icon: PhoneCall },
-  { key: 'leads',        label: 'Lead Management', href: '/company/leads',     icon: ClipboardList },
+  { key: 'forms',        label: 'Forms',        href: '/company/forms',        icon: ClipboardList },
+  { key: 'leads',        label: 'Lead Management', href: '/company/leads',     icon: Users },
   { key: 'orders',       label: 'Order Management', href: '/company/orders',   icon: ClipboardList },
 ];
 
@@ -42,7 +43,7 @@ export function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; onClose: 
     if (item.key === 'orders') {
       return user?.businessType === 'ecommerce';
     }
-    if (item.key === 'leads') {
+    if (item.key === 'leads' || item.key === 'forms') {
       return user?.businessType !== 'ecommerce';
     }
     return true;

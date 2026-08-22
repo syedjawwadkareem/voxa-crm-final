@@ -1,17 +1,19 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Plus, Trash2, Upload } from 'lucide-react';
-import { ivrCampaignsApi } from '@/lib/api';
-import type { DtmfOption } from '@/lib/api';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Trash2, Upload, RefreshCw, Loader2 } from 'lucide-react';
+import { ivrCampaignsApi, audioApi } from '@/lib/api';
+import type { DtmfOption, AudioFile } from '@/lib/api';
 
 interface CampaignBuilderProps {
   onSuccess: () => void;
+  /** Optional: pre-loaded audio list pushed in from the Audio Library tab */
+  audioList?: AudioFile[];
 }
 
 const EMPTY_DTMF_ROW: DtmfOption = { digit: '0', option_text: '', reply_audio: '' };
 
-export function CampaignBuilder({ onSuccess }: CampaignBuilderProps) {
+export function CampaignBuilder({ onSuccess, audioList: propAudioList }: CampaignBuilderProps) {
   // ── Core fields (existing) ───────────────────────────────────────────────────
   const [name, setName]               = useState('');
   const [description, setDescription] = useState('');
@@ -23,6 +25,33 @@ export function CampaignBuilder({ onSuccess }: CampaignBuilderProps) {
   const [csvFile, setCsvFile]           = useState<File | null>(null);
   const [dtmfOptions, setDtmfOptions]   = useState<DtmfOption[]>([{ ...EMPTY_DTMF_ROW }]);
   const csvInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Live audio list ───────────────────────────────────────────────────────────
+  const [audioFiles, setAudioFiles]       = useState<AudioFile[]>(propAudioList ?? []);
+  const [audioLoading, setAudioLoading]   = useState(false);
+
+  // Keep in sync if parent pushes an updated list (after upload in Audio Library tab)
+  useEffect(() => {
+    if (propAudioList) setAudioFiles(propAudioList);
+  }, [propAudioList]);
+
+  const fetchAudioFiles = async () => {
+    setAudioLoading(true);
+    try {
+      const res = await audioApi.list();
+      setAudioFiles(res.data ?? []);
+    } catch {
+      // silently fail — hardcoded fallback below
+    } finally {
+      setAudioLoading(false);
+    }
+  };
+
+  // Fetch on mount if no list was passed in
+  useEffect(() => {
+    if (!propAudioList) fetchAudioFiles();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── UI state ─────────────────────────────────────────────────────────────────
   const [saving, setSaving]   = useState(false);
@@ -144,18 +173,46 @@ export function CampaignBuilder({ onSuccess }: CampaignBuilderProps) {
             <label className="text-sm font-semibold text-slate-700 block mb-1">
               Audio File <span className="text-red-500">*</span>
             </label>
-            <select
-              id="audio-id"
-              className="input w-full"
-              value={audioId}
-              onChange={e => setAudioId(e.target.value)}
-            >
-              <option value="" disabled>Select Audio</option>
-              <option value="4">Camp_1.wav</option>
-              <option value="3">Flow B main.wav</option>
-              <option value="2">Flow A main.wav</option>
-            </select>
-            <p className="text-xs text-slate-400 mt-1">Select the audio file for this campaign.</p>
+            <div className="flex gap-2">
+              <select
+                id="audio-id"
+                className="input w-full"
+                value={audioId}
+                onChange={e => setAudioId(e.target.value)}
+                disabled={audioLoading}
+              >
+                <option value="" disabled>
+                  {audioLoading ? 'Loading audio files…' : 'Select Audio'}
+                </option>
+                {audioFiles.length > 0
+                  ? audioFiles.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.stored_file || a.original_name}
+                      </option>
+                    ))
+                  : (
+                    <>
+                      <option value="4">Camp_1.wav</option>
+                      <option value="3">Flow B main.wav</option>
+                      <option value="2">Flow A main.wav</option>
+                    </>
+                  )
+                }
+              </select>
+              <button
+                type="button"
+                id="refresh-audio-btn"
+                onClick={fetchAudioFiles}
+                disabled={audioLoading}
+                title="Refresh audio list"
+                className="flex items-center justify-center w-10 h-10 shrink-0 rounded-lg border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+              >
+                {audioLoading
+                  ? <Loader2 size={15} className="animate-spin" />
+                  : <RefreshCw size={15} />}
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Select the audio file for this campaign. Use the Audio Library tab to upload new files.</p>
           </div>
           <div>
             <label className="text-sm font-semibold text-slate-700 block mb-1">

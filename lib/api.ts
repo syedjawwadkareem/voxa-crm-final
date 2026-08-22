@@ -340,6 +340,24 @@ export const ivrCampaignsApi = {
     api.postForm<{ success: boolean; message: string; data: IvrCampaign }>('/ivr-campaigns', formData),
 };
 
+// ── Audio (OBD CMS proxy) endpoints ───────────────────────────────────────────
+
+export interface AudioFile {
+  id: string;
+  original_name: string;
+  stored_file: string;
+}
+
+export const audioApi = {
+  /** Fetch all audio files from OBD CMS */
+  list: () =>
+    api.get<{ success: boolean; data: AudioFile[] }>('/ivr-campaigns/audio'),
+
+  /** Upload an audio file to OBD CMS */
+  upload: (formData: FormData) =>
+    api.postForm<{ success: boolean; message: string; data: unknown }>('/ivr-campaigns/audio/upload', formData),
+};
+
 // ── Orders endpoints ─────────────────────────────────────────────────────────
 
 import type { Order, CreateOrderPayload } from './types';
