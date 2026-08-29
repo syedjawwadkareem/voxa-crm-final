@@ -1,39 +1,76 @@
 'use client';
 
-// ─── AdminDialer — Live Softphone Component ───────────────────────────────────
-// Wired to the Voxa CRM backend dialer API which proxies:
-//   CALL   → Asterisk API → SIP bridge → LiveKit room
-//   HANGUP → LiveKit Admin API (delete room) → drops SIP/PSTN call
+// ─── AdminDialer — ARI/AMI/JsSIP Softphone Component ─────────────────────────
+// Audio: JsSIP UA registers as PJSIP/AGENT_EXTENSION over wss:// (WebRTC)
+// Calls: ARI REST via backend → POST /api/v1/dialer/calls/pstn or /calls/agent
+// Events: SSE stream → GET /api/v1/dialer/events (real-time call state)
+// Hangup: ARI REST → DELETE /api/v1/dialer/pstn/calls/:callId or /calls/:channelId
+// Mute:   JsSIP session.mute() + ARI fallback
+// Hold:   JsSIP session.hold() + ARI fallback
 //
-// Call state machine:
-//   idle ─→ dialing ─→ ringing ─→ connected ─→ ended ─→ idle
+// Call state machine (driven by SSE events from Asterisk):
+//   idle ─→ dialing ─→ ringing-agent ─→ agent-answered ─→ dialing-pstn ─→ bridged ─→ ended ─→ idle
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, {
+  useState, useEffect, useRef, useCallback,
+} from 'react';
 import {
   Phone, Delete, Mic, MicOff, PhoneOff, Pause, Play,
   ArrowRightLeft, UserPlus, Volume2, ShieldAlert, Loader2,
-  AlertCircle, CheckCircle2, WifiOff
+  AlertCircle, CheckCircle2, WifiOff, Radio,
 } from 'lucide-react';
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-type CallState = 'idle' | 'dialing' | 'ringing' | 'connected' | 'ended' | 'error';
+type CallState =
+  | 'idle'
+  | 'dialing'
+  | 'ringing'          // agent extension ringing (leg A)
+  | 'agent-answered'   // agent picked up, dialing PSTN (leg B)
+  | 'connected'        // bridged (both legs up)
+  | 'ended'
+  | 'error';
 
-interface DialerState {
-  callState: CallState;
-  roomName: string | null;
-  number: string;
-  errorMsg: string;
-  isMuted: boolean;
-  isOnHold: boolean;
-  elapsedSeconds: number;
+type PhoneRegState = 'connecting' | 'registered' | 'unregistered' | 'failed' | 'disabled';
+
+interface SipCreds {
+  enabled: boolean;
+  wsUrl?: string;
+  uri?: string;
+  authUser?: string;
+  password?: string;
+  displayName?: string;
+  realm?: string;
+  agentExtension?: string;
+  reason?: string;
 }
 
-// ── API base ──────────────────────────────────────────────────────────────
+interface CallInfo {
+  callId:        string | null;  // PSTN two-leg bridge id (== bridgeId)
+  channelId:     string | null;  // agent channel id (usable for mute/hold/hangup)
+  type:          'pstn' | 'internal' | null;
+  destination:   string | null;
+}
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api/v1';
+interface DialerState {
+  callState:      CallState;
+  number:         string;
+  errorMsg:       string;
+  isMuted:        boolean;
+  isOnHold:       boolean;
+  elapsedSeconds: number;
+  callRoute:      string;
+  sipState:       PhoneRegState;
+  sipWho:         string;
+  banner:         { html: string; type: 'err' | 'warn' } | null;
+}
 
-// ── Helpers ───────────────────────────────────────────────────────────────
+// ── API base ──────────────────────────────────────────────────────────────────
+
+const API = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api/v1').replace(/\/$/, '');
+const DIALER = `${API}/dialer`;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDuration(secs: number): string {
   const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -41,313 +78,722 @@ function formatDuration(secs: number): string {
   return `${m}:${s}`;
 }
 
-// State label + colour
+// 1–5 digits → internal SIP extension; anything else → PSTN
+function classifyDestination(val: string): 'none' | 'internal' | 'pstn' {
+  const cleaned = val.replace(/[\s\-()]/g, '');
+  if (!cleaned) return 'none';
+  if (/^\d{1,5}$/.test(cleaned)) return 'internal';
+  return 'pstn';
+}
+
 const STATE_LABEL: Record<CallState, { text: string; color: string }> = {
-  idle:      { text: 'Ready',       color: '#94a3b8' },
-  dialing:   { text: 'Dialing…',   color: '#f59e0b' },
-  ringing:   { text: 'Ringing…',   color: '#3b82f6' },
-  connected: { text: 'Connected',  color: '#22c55e' },
-  ended:     { text: 'Call Ended', color: '#ef4444' },
-  error:     { text: 'Error',      color: '#ef4444' },
+  idle:           { text: 'Ready',            color: '#94a3b8' },
+  dialing:        { text: 'Dialing…',         color: '#f59e0b' },
+  ringing:        { text: 'Ringing…',         color: '#3b82f6' },
+  'agent-answered':{ text: 'Connecting…',     color: '#8b5cf6' },
+  connected:      { text: 'Connected',        color: '#22c55e' },
+  ended:          { text: 'Call Ended',       color: '#ef4444' },
+  error:          { text: 'Error',            color: '#ef4444' },
 };
 
-// ── Component ──────────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function AdminDialer() {
   const [state, setState] = useState<DialerState>({
-    callState: 'idle',
-    roomName: null,
-    number: '',
-    errorMsg: '',
-    isMuted: false,
-    isOnHold: false,
+    callState:      'idle',
+    number:         '',
+    errorMsg:       '',
+    isMuted:        false,
+    isOnHold:       false,
     elapsedSeconds: 0,
+    callRoute:      '',
+    sipState:       'connecting',
+    sipWho:         '',
+    banner:         null,
   });
 
-  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hangingUp   = useRef(false);
-  const roomRef     = useRef<any>(null); // holds the LiveKit Room instance
-  const lastCallTime = useRef<number>(0); // flood guard: min 5s between calls
+  // Refs — don't trigger re-renders
+  const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const callRef       = useRef<CallInfo>({ callId: null, channelId: null, type: null, destination: null });
+  const phoneRef      = useRef<{
+    ua: any; session: any; creds: SipCreds | null; registered: boolean; expectInvite: number; fatal: string | null;
+  }>({ ua: null, session: null, creds: null, registered: false, expectInvite: 0, fatal: null });
+  const sseRef        = useRef<EventSource | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const hangingUp     = useRef(false);
 
-  // ── Live timer when connected ──────────────────────────────────────────
+  // ── Timer ────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (state.callState === 'connected') {
-      timerRef.current = setInterval(() => {
-        setState((s) => ({ ...s, elapsedSeconds: s.elapsedSeconds + 1 }));
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+  const startTimer = useCallback(() => {
+    if (timerRef.current) return;
+    setState(s => ({ ...s, elapsedSeconds: 0 }));
+    timerRef.current = setInterval(() => {
+      setState(s => ({ ...s, elapsedSeconds: s.elapsedSeconds + 1 }));
+    }, 1000);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setState(s => ({ ...s, elapsedSeconds: 0 }));
+  }, []);
+
+  // ── UI helpers ────────────────────────────────────────────────────────────
+
+  const setStatus = useCallback((callState: CallState, errorMsg = '') => {
+    setState(s => ({ ...s, callState, errorMsg }));
+  }, []);
+
+  const showBanner = useCallback((html: string, type: 'err' | 'warn' = 'warn') => {
+    setState(s => ({ ...s, banner: { html, type } }));
+  }, []);
+
+  const hideBanner = useCallback(() => {
+    setState(s => ({ ...s, banner: null }));
+  }, []);
+
+  const resetState = useCallback((msg?: string) => {
+    stopTimer();
+    callRef.current = { callId: null, channelId: null, type: null, destination: null };
+    phoneRef.current.expectInvite = 0;
+
+    // Terminate any active SIP session
+    if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
+      try { phoneRef.current.session.terminate(); } catch (_) {}
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [state.callState]);
+    phoneRef.current.session = null;
 
-  // ── LiveKit room connection ───────────────────────────────────────────
+    // Stop remote audio
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.pause();
+      remoteAudioRef.current.srcObject = null;
+    }
 
-  const connectToLiveKit = useCallback(async (roomName: string) => {
-    // 1. Get LiveKit client SDK dynamically to prevent SSR issues
-    const { Room, RoomEvent, DefaultReconnectPolicy } = await import('livekit-client');
+    setState(s => ({
+      ...s,
+      callState: 'idle',
+      errorMsg: msg || '',
+      isMuted: false,
+      isOnHold: false,
+      elapsedSeconds: 0,
+      callRoute: '',
+    }));
+  }, [stopTimer]);
 
-    // 2. Fetch browser client token from backend
-    const identity = `browser-${Math.floor(1000 + Math.random() * 9000)}`;
-    const res = await fetch(`${API}/dialer/token?roomName=${encodeURIComponent(roomName)}&identity=${identity}`);
-    if (!res.ok) throw new Error('Failed to fetch LiveKit token');
-    const data = await res.json();
-    if (!data.success || !data.token) throw new Error('Invalid token returned');
+  // ── Remote audio wiring ───────────────────────────────────────────────────
 
-    // 3. Create room instance and connect
-    const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880';
-    const room = new Room({
-      audioCaptureDefaults: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-      reconnectPolicy: new DefaultReconnectPolicy(),
-    });
+  const attachRemoteAudio = useCallback((session: any) => {
+    const pc = session?.connection;
+    if (!pc || pc.__voxaWired) return;
+    pc.__voxaWired = true;
 
-    roomRef.current = room;
+    const remoteStream = new MediaStream();
 
-    // Handle incoming audio tracks
-    room.on(RoomEvent.TrackSubscribed, (track: any) => {
-      if (track.kind === 'audio') {
-        const el = track.attach();
-        el.setAttribute('id', `audio-${track.sid}`);
-        document.body.appendChild(el);
-      }
-    });
+    function playStream() {
+      if (remoteStream.getTracks().length === 0) return;
+      const el = remoteAudioRef.current;
+      if (!el) return;
+      if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+      el.play().catch(() => {
+        showBanner('<b>Browser blocked audio.</b> Click anywhere to allow it.', 'warn');
+        document.addEventListener('click', () => { hideBanner(); el.play().catch(() => {}); }, { once: true });
+      });
+    }
 
-    room.on(RoomEvent.TrackUnsubscribed, (track: any) => {
-      const el = document.getElementById(`audio-${track.sid}`);
-      if (el) {
-        track.detach(el);
-        el.remove();
-      }
-    });
-
-    room.on(RoomEvent.ParticipantConnected, (participant: any) => {
-      if (participant.identity.startsWith('sip_')) {
-        setState((s) => {
-          if (s.callState === 'ringing' || s.callState === 'dialing') {
-            return { ...s, callState: 'connected' };
-          }
-          return s;
+    pc.addEventListener('track', (ev: RTCTrackEvent) => {
+      const track = ev.track;
+      if (!remoteStream.getTracks().includes(track)) remoteStream.addTrack(track);
+      if (ev.streams?.[0]) {
+        ev.streams[0].getTracks().forEach((t: MediaStreamTrack) => {
+          if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
         });
       }
+      playStream();
     });
 
-    room.on(RoomEvent.ParticipantDisconnected, (participant: any) => {
-      if (participant.identity.startsWith('sip_')) {
-        // Disconnect when SIP user leaves
-        setState((s) => ({
-          ...s,
-          callState: 'ended',
-          roomName: null,
-        }));
-        setTimeout(() => setState((s) => ({ ...s, callState: 'idle', elapsedSeconds: 0 })), 2000);
+    pc.getReceivers().forEach((r: RTCRtpReceiver) => {
+      if (r.track && !remoteStream.getTracks().includes(r.track)) remoteStream.addTrack(r.track);
+    });
+    playStream();
+  }, [showBanner, hideBanner]);
+
+  // ── JsSIP session handling ────────────────────────────────────────────────
+
+  const attachSession = useCallback((session: any, originator: string) => {
+    // One call at a time
+    if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
+      if (originator === 'remote') {
+        try { session.terminate({ status_code: 486, reason_phrase: 'Busy Here' }); } catch (_) {}
       }
-    });
-
-    room.on(RoomEvent.Reconnecting, () => {
-      setState((s) => ({ ...s, errorMsg: 'Reconnecting...' }));
-    });
-
-    room.on(RoomEvent.Reconnected, () => {
-      setState((s) => ({ ...s, errorMsg: '' }));
-    });
-
-    room.on(RoomEvent.Disconnected, () => {
-      setState((s) => ({
-        ...s,
-        callState: 'ended',
-        roomName: null,
-      }));
-      setTimeout(() => setState((s) => ({ ...s, callState: 'idle', elapsedSeconds: 0 })), 2000);
-    });
-
-    // Connect to server
-    await room.connect(wsUrl, data.token);
-    console.log('[Softphone] Browser connected to LiveKit room:', roomName);
-
-    // Enable local microphone by default
-    await room.localParticipant.setMicrophoneEnabled(true);
-    console.log('[Softphone] Microphone published');
-  }, []);
-
-  const disconnectFromLiveKit = useCallback(() => {
-    if (roomRef.current) {
-      try {
-        // Detach all audio elements
-        roomRef.current.localParticipant.setMicrophoneEnabled(false);
-        roomRef.current.disconnect();
-      } catch (err) {
-        console.error('[Softphone] LiveKit disconnect error:', err);
-      }
-      roomRef.current = null;
-      // Clean up any remaining dynamically attached audio tags
-      document.querySelectorAll('audio[id^="audio-"]').forEach((el) => el.remove());
+      return;
     }
-  }, []);
+    phoneRef.current.session = session;
 
-  // Sync mute state with LiveKit Room
-  useEffect(() => {
-    if (roomRef.current) {
-      roomRef.current.localParticipant.setMicrophoneEnabled(!state.isMuted)
-        .catch((err: any) => console.error('Failed to toggle mute in LiveKit room:', err));
-    }
-  }, [state.isMuted]);
-
-  useEffect(() => {
-    return () => {
-      disconnectFromLiveKit();
-      if (timerRef.current) clearInterval(timerRef.current);
+    const ANSWER_OPTIONS = {
+      mediaConstraints: { audio: true, video: false },
+      pcConfig: { iceServers: [], rtcpMuxPolicy: 'require' }
     };
-  }, [disconnectFromLiveKit]);
 
-  // ── Key handlers ──────────────────────────────────────────────────────
+    session.on('peerconnection', () => attachRemoteAudio(session));
+    session.on('accepted',       () => attachRemoteAudio(session));
+    session.on('confirmed', () => {
+      attachRemoteAudio(session);
+      if (callRef.current.type === 'internal') {
+        setStatus('connected');
+        startTimer();
+      }
+    });
+    session.on('getusermediafailed', () => {
+      showBanner('<b>Microphone not available.</b> Check browser permissions.', 'err');
+    });
+    session.on('ended', () => {
+      phoneRef.current.session = null;
+      if (!callRef.current.callId && !callRef.current.channelId) resetState('Call ended');
+    });
+    session.on('failed', (e: any) => {
+      phoneRef.current.session = null;
+      if (!callRef.current.callId && !callRef.current.channelId) {
+        resetState('Call failed' + (e?.cause ? ' — ' + e.cause : ''));
+      }
+    });
 
-  function handleKeyPress(digit: string) {
-    if (state.callState !== 'idle') return;
-    setState((s) => ({
+    if (originator !== 'remote') return;
+
+    // Auto-answer solicited INVITE (leg A of a PSTN call we just placed)
+    const solicited = Date.now() - phoneRef.current.expectInvite < 45000;
+    if (solicited) {
+      phoneRef.current.expectInvite = 0;
+      session.answer(ANSWER_OPTIONS);
+      return;
+    }
+
+    // Unexpected inbound call — show incoming UI
+    const from = session.remote_identity?.uri?.user || 'unknown';
+    setState(s => ({
       ...s,
-      number: s.number.length < 15 ? s.number + digit : s.number,
+      callState: 'ringing',
+      callRoute: `Incoming call from ${from}`,
     }));
-  }
+  }, [attachRemoteAudio, setStatus, startTimer, showBanner, resetState]);
 
-  function handleDelete() {
-    setState((s) => ({ ...s, number: s.number.slice(0, -1) }));
-  }
+  // ── JsSIP UA initialisation ───────────────────────────────────────────────
 
-  // ── CALL ──────────────────────────────────────────────────────────────
+  const initPhone = useCallback(async () => {
+    let creds: SipCreds;
+    try {
+      const res = await fetch(`${DIALER}/sip/credentials`);
+      creds = await res.json();
+      if (!res.ok) throw new Error((creds as any).error || `HTTP ${res.status}`);
+    } catch (err: any) {
+      phoneRef.current.fatal = 'credentials';
+      setState(s => ({ ...s, sipState: 'failed', sipWho: '' }));
+      showBanner(
+        '<b>Could not read SIP credentials</b> from the backend (' + err.message +
+        '). Calls will connect but have no audio.',
+        'err'
+      );
+      return;
+    }
+
+    if (!creds.enabled) {
+      phoneRef.current.fatal = 'disabled';
+      setState(s => ({ ...s, sipState: 'disabled', sipWho: creds.uri || '' }));
+      showBanner('<b>WEBRTC_AGENT is off</b> — every call will be silent until it is enabled.', 'err');
+      return;
+    }
+
+    phoneRef.current.creds = creds;
+    setState(s => ({ ...s, sipWho: creds.uri || '' }));
+
+    if (!window.isSecureContext) {
+      phoneRef.current.fatal = 'insecure';
+      setState(s => ({ ...s, sipState: 'failed' }));
+      showBanner(
+        '<b>Not a secure context.</b> Browsers only allow microphone access over HTTPS ' +
+        '(or from localhost). The softphone cannot capture audio here.',
+        'err'
+      );
+      return;
+    }
+
+    // Dynamically import JsSIP (client-side only)
+    let JsSIP: any;
+    try {
+      JsSIP = (await import('jssip')).default;
+    } catch {
+      phoneRef.current.fatal = 'jssip';
+      setState(s => ({ ...s, sipState: 'failed' }));
+      showBanner('<b>JsSIP failed to load.</b> Check the browser console for details.', 'err');
+      return;
+    }
+
+    try {
+      if (creds.agentExtension && creds.authUser && creds.agentExtension !== creds.authUser) {
+        showBanner(
+          `<b>Mismatch:</b> browser registers as <code>${creds.authUser}</code> but server rings ` +
+          `<code>${creds.agentExtension}</code> for the agent leg. ` +
+          'One of SIP_EXTENSION / AGENT_EXTENSION needs to change.',
+          'warn'
+        );
+      }
+
+      const socket = new JsSIP.WebSocketInterface(creds.wsUrl);
+      const ua = new JsSIP.UA({
+        sockets: [socket],
+        uri: creds.uri,
+        password: creds.password,
+        authorization_user: creds.authUser,
+        display_name: creds.displayName,
+        realm: creds.realm || undefined,
+        register: true,
+        register_expires: 300,
+        session_timers: false,
+      });
+      phoneRef.current.ua = ua;
+
+      setState(s => ({ ...s, sipState: 'connecting' }));
+
+      ua.on('connected',    () => setState(s => ({ ...s, sipState: 'connecting' })));
+      ua.on('registered',   () => {
+        phoneRef.current.registered = true;
+        setState(s => ({ ...s, sipState: 'registered' }));
+        hideBanner();
+      });
+      ua.on('unregistered', () => {
+        phoneRef.current.registered = false;
+        setState(s => ({ ...s, sipState: 'unregistered' }));
+      });
+      ua.on('registrationFailed', (e: any) => {
+        phoneRef.current.registered = false;
+        setState(s => ({ ...s, sipState: 'failed' }));
+        showBanner(
+          `<b>Registration failed</b> for ${creds.authUser} (${e?.cause || 'unknown'}). ` +
+          'Check that the endpoint exists with <code>webrtc=yes</code> and the password matches.',
+          'err'
+        );
+      });
+      ua.on('disconnected', (e: any) => {
+        phoneRef.current.registered = false;
+        setState(s => ({ ...s, sipState: 'unregistered' }));
+        if (e?.error) {
+          showBanner(
+            `<b>Cannot reach ${creds.wsUrl}.</b> Check the Asterisk WebSocket and certificate.`,
+            'err'
+          );
+        }
+      });
+      ua.on('newRTCSession', (e: any) => attachSession(e.session, e.originator));
+      ua.start();
+    } catch (err: any) {
+      phoneRef.current.fatal = 'init_error';
+      setState(s => ({ ...s, sipState: 'failed' }));
+      showBanner(`<b>Softphone crashed:</b> ${err.message}`, 'err');
+    }
+  }, [attachSession, showBanner, hideBanner]);
+
+  // ── SSE event handling ────────────────────────────────────────────────────
+
+  const handleEvent = useCallback((evt: any) => {
+    const isOurCall = (e: any) => callRef.current.callId && e.callId === callRef.current.callId;
+
+    switch (evt.event) {
+      case 'AriConnected':
+        if (!callRef.current.callId && !callRef.current.channelId && !phoneRef.current.session) {
+          resetState('Ready to call');
+        }
+        break;
+
+      case 'AriDisconnected':
+        setState(s => ({ ...s, errorMsg: 'ARI disconnected — reconnecting…' }));
+        break;
+
+      case 'PstnCallStarted':
+        if (!isOurCall(evt)) break;
+        setState(s => ({ ...s, callState: 'ringing', callRoute: evt.route || '' }));
+        break;
+
+      case 'AgentAnswered':
+        if (!isOurCall(evt)) break;
+        setState(s => ({
+          ...s,
+          callState: 'agent-answered',
+          callRoute: s.callRoute,
+        }));
+        break;
+
+      case 'PstnDialing':
+        if (!isOurCall(evt)) break;
+        setState(s => ({ ...s, callState: 'agent-answered', callRoute: evt.route || evt.dialString || s.callRoute }));
+        break;
+
+      case 'PstnCallBridged':
+        if (!isOurCall(evt)) break;
+        setState(s => ({ ...s, callState: 'connected', callRoute: s.callRoute }));
+        startTimer();
+        break;
+
+      case 'PstnCallFailed':
+        if (!isOurCall(evt)) break;
+        stopTimer();
+        setState(s => ({
+          ...s, callState: 'error',
+          errorMsg: 'Failed: ' + (evt.error || 'call could not be completed'),
+        }));
+        setTimeout(() => resetState(), 3500);
+        break;
+
+      case 'PstnLegEnded':
+        if (!isOurCall(evt)) break;
+        if (evt.leg === 'pstn') {
+          setState(s => ({ ...s, errorMsg: `Far end hung up${evt.cause ? ' (' + evt.cause + ')' : ''}` }));
+        }
+        break;
+
+      case 'PstnCallEnded': {
+        if (!isOurCall(evt)) break;
+        const never = evt.lastState && evt.lastState !== 'bridged';
+        stopTimer();
+        setState(s => ({
+          ...s, callState: 'ended',
+          errorMsg: never ? `Ended before connecting${evt.reason ? ' — ' + evt.reason : ''}` : 'Call ended',
+        }));
+        setTimeout(() => resetState(), 2000);
+        break;
+      }
+
+      case 'StasisStart':
+        // Direct single-leg PSTN: Local channel answer = far end picked up
+        if (!callRef.current.callId && callRef.current.type === 'pstn' && evt.channelId === callRef.current.channelId) {
+          setState(s => ({ ...s, callState: 'connected' }));
+          startTimer();
+        }
+        break;
+
+      case 'ChannelDestroyed':
+        if (!callRef.current.callId && callRef.current.channelId && evt.channelId === callRef.current.channelId) {
+          stopTimer();
+          setState(s => ({ ...s, callState: 'ended', errorMsg: 'Call ended' }));
+          setTimeout(() => resetState(), 2000);
+        }
+        break;
+
+      default:
+        break;
+    }
+  }, [startTimer, stopTimer, resetState]);
+
+  const connectEvents = useCallback(() => {
+    if (sseRef.current) sseRef.current.close();
+    const sse = new EventSource(`${DIALER}/events`);
+    sseRef.current = sse;
+    sse.onmessage = (msg) => {
+      try { handleEvent(JSON.parse(msg.data)); } catch (_) {}
+    };
+    sse.onerror = () => {}; // EventSource auto-retries
+  }, [handleEvent]);
+
+  // ── Bootstrap ─────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    // Create the remote audio element once
+    const audio = document.createElement('audio');
+    audio.setAttribute('autoplay', '');
+    audio.setAttribute('playsinline', '');
+    audio.style.display = 'none';
+    document.body.appendChild(audio);
+    remoteAudioRef.current = audio;
+
+    connectEvents();
+    initPhone();
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (sseRef.current) sseRef.current.close();
+      if (phoneRef.current.ua) { try { phoneRef.current.ua.stop(); } catch (_) {} }
+      if (audio.parentNode) audio.parentNode.removeChild(audio);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── CALL ──────────────────────────────────────────────────────────────────
 
   async function handleCall() {
     const num = state.number.trim();
     if (!num) return;
 
-    // Enforce 5-second cooldown to prevent flood rejection (Issue #5)
-    const now = Date.now();
-    const timeSinceLastCall = now - lastCallTime.current;
-    if (timeSinceLastCall < 5000) {
-      const waitSeconds = Math.ceil((5000 - timeSinceLastCall) / 1000);
-      setState((s) => ({
-        ...s,
-        callState: 'error',
-        errorMsg: `Please wait ${waitSeconds}s before calling again.`
-      }));
-      setTimeout(() => setState((s) => ({ ...s, callState: 'idle', errorMsg: '' })), 2500);
+    const type = classifyDestination(num);
+    if (type === 'none') return;
+
+    // Block PSTN calls if softphone not registered (no audio)
+    if (type === 'pstn' && phoneRef.current.creds?.enabled && !phoneRef.current.registered) {
+      showBanner(
+        '<b>Softphone not registered.</b> Wait for "Registered" status before placing a PSTN call ' +
+        '— otherwise the call will connect with no audio.',
+        'err'
+      );
+      setStatus('error', 'Softphone not registered');
+      setTimeout(() => resetState(), 3000);
       return;
     }
-    lastCallTime.current = now;
 
-    setState((s) => ({ ...s, callState: 'dialing', errorMsg: '' }));
+    setState(s => ({ ...s, callState: 'dialing', errorMsg: '' }));
+    hideBanner();
+
+    // Internal call: placed straight from the softphone
+    if (type === 'internal' && phoneRef.current.registered && phoneRef.current.ua) {
+      const creds = phoneRef.current.creds!;
+      try {
+        const target = `sip:${num}@${creds.realm || ''}`;
+        phoneRef.current.ua.call(target, {
+          mediaConstraints: { audio: true, video: false },
+          pcConfig: { iceServers: [], rtcpMuxPolicy: 'require' }
+        });
+        callRef.current = { callId: null, channelId: null, type: 'internal', destination: num };
+        setState(s => ({ ...s, callState: 'ringing', callRoute: `Softphone → ${target}` }));
+      } catch (err: any) {
+        resetState('Could not place the call: ' + err.message);
+      }
+      return;
+    }
+
+    // PSTN call: server-side origination via ARI
+    if (type === 'pstn') phoneRef.current.expectInvite = Date.now();
 
     try {
-      const roomName = 'phone-room';
+      let res: Response, data: any;
 
-      // 1. Connect to the LiveKit room FIRST (and get mic permission)
-      await connectToLiveKit(roomName);
-
-      // 2. Call the backend to trigger Asterisk
-      const res = await fetch(`${API}/dialer/call`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: num }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || `Server error ${res.status}`);
+      if (type === 'internal') {
+        res = await fetch(`${DIALER}/calls/agent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: num }),
+        });
+      } else {
+        res = await fetch(`${DIALER}/calls/pstn`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: num }),
+        });
       }
 
-      setState((s) => ({
+      data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !(data.id || data.callId)) {
+        phoneRef.current.expectInvite = 0;
+        const msg = data.error || data.message || `Server error ${res.status}`;
+        setState(s => ({ ...s, callState: 'error', errorMsg: msg }));
+        setTimeout(() => resetState(), 4000);
+        return;
+      }
+
+      callRef.current = {
+        callId:      data.callId || null,
+        channelId:   data.id     || null,
+        type,
+        destination: data.destination || num,
+      };
+
+      if (data.warning) showBanner('<b>No audio on this call.</b> ' + data.warning, 'err');
+
+      setState(s => ({
         ...s,
         callState: 'ringing',
-        roomName,
-        elapsedSeconds: 0,
+        callRoute: data.route || (type === 'internal' ? `Direct → PJSIP/${num}` : `${num} via trunk`),
       }));
 
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to initiate call';
-      setState((s) => ({ ...s, callState: 'error', errorMsg: msg }));
-      setTimeout(() => setState((s) => ({ ...s, callState: 'idle', errorMsg: '' })), 4000);
-      disconnectFromLiveKit();
+    } catch (_err) {
+      phoneRef.current.expectInvite = 0;
+      setState(s => ({ ...s, callState: 'error', errorMsg: 'Network error — is the server running?' }));
+      setTimeout(() => resetState(), 4000);
     }
   }
 
-  // ── HANGUP ────────────────────────────────────────────────────────────
+  // ── HANGUP ────────────────────────────────────────────────────────────────
 
   async function handleHangup() {
     if (hangingUp.current) return;
     hangingUp.current = true;
+    phoneRef.current.expectInvite = 0;
 
-    const { roomName } = state;
+    // End SIP session immediately
+    if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
+      try { phoneRef.current.session.terminate(); } catch (_) {}
+    }
+    phoneRef.current.session = null;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.pause();
+      remoteAudioRef.current.srcObject = null;
+    }
 
-    disconnectFromLiveKit();
-    setState((s) => ({ ...s, callState: 'ended' }));
+    stopTimer();
+    setState(s => ({ ...s, callState: 'ended' }));
+
+    const { callId, channelId } = callRef.current;
+    const url = callId
+      ? `${DIALER}/pstn/calls/${encodeURIComponent(callId)}`
+      : channelId
+        ? `${DIALER}/calls/${encodeURIComponent(channelId)}`
+        : null;
 
     try {
-      if (roomName) {
-        await fetch(`${API}/dialer/hangup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomName }),
-        });
-      }
-    } catch (err) {
-      console.error('[Dialer] Hangup error:', err);
-      // Still show ended state — room may already be gone
-    } finally {
-      hangingUp.current = false;
-      setTimeout(() => {
-        setState({
-          callState: 'idle',
-          roomName: null,
-          number: '',
-          errorMsg: '',
-          isMuted: false,
-          isOnHold: false,
-          elapsedSeconds: 0,
-        });
-      }, 1500);
-    }
+      if (url) await fetch(url, { method: 'DELETE' });
+    } catch (_) { /* channel may already be gone */ }
+
+    hangingUp.current = false;
+    setTimeout(() => resetState(), 1500);
   }
 
-  // ── Render helpers ─────────────────────────────────────────────────────
+  // ── MUTE ─────────────────────────────────────────────────────────────────
 
-  const { callState, number, isMuted, isOnHold, elapsedSeconds, errorMsg } = state;
-  const isActive  = callState === 'ringing' || callState === 'connected';
+  async function handleMute() {
+    const isMuted = state.isMuted;
+
+    // Prefer JsSIP mute (stops mic track locally — no re-INVITE)
+    if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
+      try {
+        if (isMuted) phoneRef.current.session.unmute({ audio: true });
+        else          phoneRef.current.session.mute(  { audio: true });
+        setState(s => ({ ...s, isMuted: !isMuted }));
+      } catch (_) {}
+      return;
+    }
+
+    // ARI fallback for calls without a browser SIP leg
+    const { channelId } = callRef.current;
+    if (!channelId) return;
+    try {
+      const method = isMuted ? 'DELETE' : 'POST';
+      const res = await fetch(`${DIALER}/calls/${encodeURIComponent(channelId)}/mute`, { method });
+      if (res.ok || res.status === 204) setState(s => ({ ...s, isMuted: !isMuted }));
+    } catch (_) {}
+  }
+
+  // ── HOLD ─────────────────────────────────────────────────────────────────
+
+  async function handleHold() {
+    const isOnHold = state.isOnHold;
+
+    // Prefer JsSIP hold (sends re-INVITE with sendonly — Asterisk plays MoH)
+    if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
+      try {
+        if (isOnHold) phoneRef.current.session.unhold();
+        else           phoneRef.current.session.hold();
+        setState(s => ({ ...s, isOnHold: !isOnHold }));
+      } catch (_) {}
+      return;
+    }
+
+    // ARI fallback
+    const { channelId } = callRef.current;
+    if (!channelId) return;
+    try {
+      const method = isOnHold ? 'DELETE' : 'POST';
+      const res = await fetch(`${DIALER}/calls/${encodeURIComponent(channelId)}/hold`, { method });
+      if (res.ok || res.status === 204) setState(s => ({ ...s, isOnHold: !isOnHold }));
+    } catch (_) {}
+  }
+
+  // ── Answer / Reject incoming (when an unexpected INVITE arrives) ───────────
+
+  function handleAnswerIncoming() {
+    if (!phoneRef.current.session) return;
+    phoneRef.current.session.answer({
+      mediaConstraints: { audio: true, video: false },
+      pcConfig: { iceServers: [], rtcpMuxPolicy: 'require' }
+    });
+    callRef.current = { callId: null, channelId: null, type: 'internal', destination: 'inbound' };
+    setState(s => ({ ...s, callState: 'connected' }));
+    startTimer();
+  }
+
+  function handleRejectIncoming() {
+    if (!phoneRef.current.session) return;
+    try { phoneRef.current.session.terminate({ status_code: 603, reason_phrase: 'Declined' }); } catch (_) {}
+    phoneRef.current.session = null;
+    resetState('Call declined');
+  }
+
+  // ── Keypad ───────────────────────────────────────────────────────────────
+
+  function handleKeyPress(digit: string) {
+    if (state.callState !== 'idle') return;
+    setState(s => ({ ...s, number: s.number.length < 15 ? s.number + digit : s.number }));
+  }
+
+  function handleDelete() {
+    setState(s => ({ ...s, number: s.number.slice(0, -1) }));
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const { callState, number, isMuted, isOnHold, elapsedSeconds, errorMsg, sipState, sipWho, banner, callRoute } = state;
+
+  const isActive  = callState === 'connected';
+  const isRinging = callState === 'ringing' || callState === 'agent-answered';
   const isBusy    = callState === 'dialing' || callState === 'ended';
+  const isInCall  = isActive || isRinging || isBusy;
+
   const { text: stateText, color: stateColor } = STATE_LABEL[callState];
 
+  const sipDotColor =
+    sipState === 'registered'   ? '#22c55e' :
+    sipState === 'connecting'   ? '#f59e0b' :
+    sipState === 'disabled'     ? '#94a3b8' :
+    '#ef4444';
+
+  const sipLabel =
+    sipState === 'registered'   ? 'Registered — audio ready' :
+    sipState === 'connecting'   ? 'Connecting…' :
+    sipState === 'unregistered' ? 'Unregistered' :
+    sipState === 'failed'       ? 'Registration failed' :
+    sipState === 'disabled'     ? 'Softphone disabled' :
+    'Starting…';
+
   const keys = [
-    { digit: '1', letters: '' },  { digit: '2', letters: 'ABC' }, { digit: '3', letters: 'DEF' },
+    { digit: '1', letters: '' },   { digit: '2', letters: 'ABC' }, { digit: '3', letters: 'DEF' },
     { digit: '4', letters: 'GHI' },{ digit: '5', letters: 'JKL' }, { digit: '6', letters: 'MNO' },
-    { digit: '7', letters: 'PQRS' },{ digit: '8', letters: 'TUV' }, { digit: '9', letters: 'WXYZ' },
-    { digit: '*', letters: '' },  { digit: '0', letters: '+' },   { digit: '#', letters: '' },
+    { digit: '7', letters: 'PQRS' },{ digit: '8', letters: 'TUV' },{ digit: '9', letters: 'WXYZ' },
+    { digit: '*', letters: '' },   { digit: '0', letters: '+' },   { digit: '#', letters: '' },
   ];
 
   return (
     <div className="w-full mx-auto bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-sm border border-slate-100/50">
       <div className="flex flex-col items-center">
 
-        {/* ── Display ─────────────────────────────────────────────────── */}
+        {/* ── SIP registration bar ──────────────────────────────────────── */}
+        <div className="w-full mb-3 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50/70 border border-slate-100 text-xs">
+          <span className="flex items-center gap-1.5 text-slate-500">
+            <span
+              className="w-2 h-2 rounded-full inline-block flex-shrink-0 transition-colors duration-300"
+              style={{ background: sipDotColor, boxShadow: sipState === 'registered' ? `0 0 6px ${sipDotColor}` : 'none' }}
+            />
+            {sipLabel}
+          </span>
+          <span className="text-slate-400 font-mono truncate max-w-[140px]">{sipWho || '—'}</span>
+        </div>
+
+        {/* ── Error / warning banner ─────────────────────────────────────── */}
+        {banner && (
+          <div
+            className={`w-full mb-3 text-xs px-3 py-2 rounded-xl border leading-relaxed ${
+              banner.type === 'err'
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}
+            dangerouslySetInnerHTML={{ __html: banner.html }}
+          />
+        )}
+
+        {/* ── Display ──────────────────────────────────────────────────── */}
         <div className="w-full mb-5">
-          {/* Number / status display */}
           <div className="h-16 flex items-center justify-center relative bg-slate-50/50 rounded-2xl border border-slate-100 overflow-hidden">
             {/* Animated background when ringing */}
-            {callState === 'ringing' && (
-              <div
-                className="absolute inset-0 opacity-10 animate-pulse"
-                style={{ background: 'linear-gradient(135deg, #3b82f6, #06b6d4)' }}
-              />
+            {(callState === 'ringing' || callState === 'agent-answered') && (
+              <div className="absolute inset-0 opacity-10 animate-pulse"
+                style={{ background: 'linear-gradient(135deg, #3b82f6, #06b6d4)' }} />
             )}
             {/* Animated background when connected */}
             {callState === 'connected' && (
-              <div
-                className="absolute inset-0 opacity-10"
-                style={{ background: 'linear-gradient(135deg, #22c55e, #10b981)' }}
-              />
+              <div className="absolute inset-0 opacity-10"
+                style={{ background: 'linear-gradient(135deg, #22c55e, #10b981)' }} />
             )}
 
             {callState === 'idle' ? (
@@ -358,13 +804,9 @@ export function AdminDialer() {
                 value={number}
                 onChange={(e) => {
                   const val = e.target.value.replace(/[^\d+*#]/g, '').slice(0, 15);
-                  setState((s) => ({ ...s, number: val }));
+                  setState(s => ({ ...s, number: val }));
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && number.trim()) {
-                    handleCall();
-                  }
-                }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && number.trim()) handleCall(); }}
               />
             ) : (
               <span className="text-2xl tracking-wider font-semibold z-10 text-slate-800">
@@ -387,38 +829,57 @@ export function AdminDialer() {
             {callState === 'dialing' && (
               <Loader2 size={13} className="animate-spin" style={{ color: stateColor }} />
             )}
-            {callState === 'ringing' && (
+            {(callState === 'ringing' || callState === 'agent-answered') && (
               <span className="flex gap-0.5">
-                {[0,1,2].map((i) => (
-                  <span
-                    key={i}
-                    className="w-1 h-1 rounded-full animate-bounce"
-                    style={{ background: stateColor, animationDelay: `${i * 0.15}s` }}
-                  />
+                {[0, 1, 2].map((i) => (
+                  <span key={i} className="w-1 h-1 rounded-full animate-bounce"
+                    style={{ background: stateColor, animationDelay: `${i * 0.15}s` }} />
                 ))}
               </span>
             )}
-            {callState === 'connected' && (
-              <CheckCircle2 size={13} style={{ color: stateColor }} />
-            )}
-            {callState === 'ended' && (
-              <WifiOff size={13} style={{ color: stateColor }} />
-            )}
-            {callState === 'error' && (
-              <AlertCircle size={13} style={{ color: stateColor }} />
-            )}
+            {callState === 'connected' && <CheckCircle2 size={13} style={{ color: stateColor }} />}
+            {callState === 'ended' && <WifiOff size={13} style={{ color: stateColor }} />}
+            {callState === 'error' && <AlertCircle size={13} style={{ color: stateColor }} />}
 
             <span className="text-sm font-medium" style={{ color: stateColor }}>
               {callState === 'connected'
                 ? `${stateText} · ${formatDuration(elapsedSeconds)}`
                 : callState === 'error'
-                ? errorMsg || stateText
-                : stateText}
+                  ? errorMsg || stateText
+                  : stateText}
             </span>
           </div>
+
+          {/* Call route hint */}
+          {callRoute && callState !== 'idle' && (
+            <div className="mt-1 text-center text-[10px] text-slate-400 font-mono truncate px-2">
+              {callRoute}
+            </div>
+          )}
         </div>
 
-        {/* ── Dial Pad — only when idle ────────────────────────────────── */}
+        {/* ── Incoming call UI (unexpected inbound INVITE) ──────────────── */}
+        {callState === 'ringing' && !callRef.current.callId && !phoneRef.current.expectInvite && callRoute.startsWith('Incoming') && (
+          <div className="w-full mb-4 p-3 rounded-2xl bg-blue-50/80 border border-blue-200 flex flex-col gap-2 items-center">
+            <span className="text-sm font-semibold text-blue-800">{callRoute}</span>
+            <div className="grid grid-cols-2 gap-2 w-full">
+              <button
+                onClick={handleAnswerIncoming}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-all"
+              >
+                <Phone size={15} fill="currentColor" /> Answer
+              </button>
+              <button
+                onClick={handleRejectIncoming}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-all"
+              >
+                <PhoneOff size={15} /> Decline
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Dial Pad — only when idle ──────────────────────────────────── */}
         {callState === 'idle' && (
           <div className="grid grid-cols-3 gap-3 w-full max-w-[260px] mb-7">
             {keys.map((key, i) => (
@@ -440,12 +901,12 @@ export function AdminDialer() {
           </div>
         )}
 
-        {/* ── In-call controls ─────────────────────────────────────────── */}
+        {/* ── In-call controls ──────────────────────────────────────────── */}
         {isActive && (
           <div className="grid grid-cols-3 gap-3 w-full max-w-[280px] mb-6">
             {/* Mute */}
             <button
-              onClick={() => setState((s) => ({ ...s, isMuted: !s.isMuted }))}
+              onClick={handleMute}
               className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 ${
                 isMuted
                   ? 'bg-slate-800 text-white shadow-lg shadow-slate-800/20'
@@ -453,12 +914,12 @@ export function AdminDialer() {
               }`}
             >
               {isMuted ? <MicOff size={20} className="mb-1" /> : <Mic size={20} className="mb-1" />}
-              <span className="text-xs font-medium">Mute</span>
+              <span className="text-xs font-medium">{isMuted ? 'Unmute' : 'Mute'}</span>
             </button>
 
             {/* Hold */}
             <button
-              onClick={() => setState((s) => ({ ...s, isOnHold: !s.isOnHold }))}
+              onClick={handleHold}
               className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 ${
                 isOnHold
                   ? 'bg-amber-100 text-amber-700'
@@ -466,7 +927,7 @@ export function AdminDialer() {
               }`}
             >
               {isOnHold ? <Play size={20} className="mb-1" /> : <Pause size={20} className="mb-1" />}
-              <span className="text-xs font-medium">Hold</span>
+              <span className="text-xs font-medium">{isOnHold ? 'Unhold' : 'Hold'}</span>
             </button>
 
             {/* Transfer (future) */}
@@ -497,18 +958,17 @@ export function AdminDialer() {
 
         {/* ── Primary Action Button ─────────────────────────────────────── */}
         <div className="w-full max-w-[280px]">
-          {/* END CALL */}
-          {(isActive || isBusy) ? (
+          {isInCall ? (
             <button
-              onClick={isActive ? handleHangup : undefined}
-              disabled={isBusy}
+              onClick={isActive ? handleHangup : (isRinging ? handleHangup : undefined)}
+              disabled={isBusy && !isRinging}
               className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-medium text-white transition-all duration-200 ${
-                isBusy
+                isBusy && !isRinging
                   ? 'bg-slate-300 cursor-not-allowed'
                   : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 hover:scale-[1.02] active:scale-[0.98]'
               }`}
             >
-              {isBusy ? (
+              {isBusy && !isRinging ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
                   {callState === 'dialing' ? 'Connecting…' : 'Ending…'}
@@ -516,12 +976,11 @@ export function AdminDialer() {
               ) : (
                 <>
                   <PhoneOff size={18} />
-                  End Call
+                  {isRinging ? 'Cancel' : 'End Call'}
                 </>
               )}
             </button>
           ) : (
-            /* CALL */
             <button
               onClick={handleCall}
               disabled={!number.trim()}
@@ -533,10 +992,10 @@ export function AdminDialer() {
           )}
         </div>
 
-        {/* ── Room debug info (only in dev, non-idle) ───────────────────── */}
-        {process.env.NODE_ENV === 'development' && state.roomName && (
+        {/* ── Dev debug info ────────────────────────────────────────────── */}
+        {process.env.NODE_ENV === 'development' && callRef.current.callId && (
           <div className="mt-3 text-[10px] text-slate-400 text-center font-mono">
-            Room: {state.roomName}
+            callId: {callRef.current.callId}
           </div>
         )}
 
