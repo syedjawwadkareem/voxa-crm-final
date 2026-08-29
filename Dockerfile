@@ -27,10 +27,8 @@ COPY . .
 
 # Build args for public env vars (these are baked into the client bundle at build time)
 ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_LIVEKIT_URL
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_LIVEKIT_URL=$NEXT_PUBLIC_LIVEKIT_URL
 
 # Build the Next.js production bundle
 RUN pnpm build
