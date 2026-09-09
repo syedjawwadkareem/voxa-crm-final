@@ -369,3 +369,58 @@ export const ordersApi = {
   update: (id: string, payload: Partial<CreateOrderPayload>) => api.patch<ApiSuccess<Order>>(`/orders/${id}`, payload),
   delete: (id: string) => api.delete<ApiSuccess<null>>(`/orders/${id}`),
 };
+
+// ── DID endpoints ─────────────────────────────────────────────────────────────
+
+export interface Did {
+  _id: string;
+  did_number: string;
+  label: string;
+  notes: string;
+  status: 'available' | 'assigned' | 'released';
+  company_id: { _id: string; name: string; status: string } | null;
+  campaign_id: string | null;
+  ai_flow_id: string | null;
+  context: string;
+  is_active: boolean;
+  assigned_at: string;
+  released_at: string | null;
+  added_by: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DidHistoryRow {
+  _id: string;
+  did_number: string;
+  status: string;
+  company: string;
+  assigned_at: string;
+  released_at: string | null;
+}
+
+export interface CreateDidPayload {
+  did_number: string;
+  label?: string;
+  notes?: string;
+  context?: string;
+}
+
+// Admin DID API
+export const didsApi = {
+  // Admin
+  list:    () => api.get<ApiSuccess<Did[]>>('/dids'),
+  getById: (id: string) => api.get<ApiSuccess<Did>>(`/dids/${id}`),
+  getHistory: (id: string) => api.get<ApiSuccess<Did[]>>(`/dids/${id}/history`),
+  create:  (payload: CreateDidPayload) => api.post<ApiSuccess<Did>>('/dids', payload),
+  update:  (id: string, payload: Partial<CreateDidPayload>) => api.patch<ApiSuccess<Did>>(`/dids/${id}`, payload),
+  delete:  (id: string) => api.delete<ApiSuccess<null>>(`/dids/${id}`),
+  assign:  (id: string, company_id: string) => api.post<ApiSuccess<Did>>(`/dids/${id}/assign`, { company_id }),
+  release: (id: string) => api.post<ApiSuccess<Did>>(`/dids/${id}/release`, {}),
+
+  // Company (own DIDs)
+  listMine: () => api.get<ApiSuccess<Did[]>>('/dids/company/mine'),
+  getMineHistory: (didId: string) =>
+    api.get<ApiSuccess<DidHistoryRow[]>>(`/dids/company/mine/${didId}/history`),
+};
+

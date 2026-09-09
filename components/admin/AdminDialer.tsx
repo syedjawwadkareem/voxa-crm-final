@@ -17,8 +17,9 @@ import React, {
 import {
   Phone, Delete, Mic, MicOff, PhoneOff, Pause, Play,
   ArrowRightLeft, UserPlus, Volume2, ShieldAlert, Loader2,
-  AlertCircle, CheckCircle2, WifiOff, Radio,
+  AlertCircle, CheckCircle2, WifiOff, Radio, Hash, ChevronDown,
 } from 'lucide-react';
+import { getPortal, getAccessToken } from '@/lib/auth';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,10 @@ export function AdminDialer() {
     sipWho:         '',
     banner:         null,
   });
+
+  // DID dropdown — admin can call from any DID in the pool
+  const [dids, setDids] = useState<{ _id: string; did_number: string; label: string; status: string }[]>([]);
+  const [selectedDid, setSelectedDid] = useState<string>(''); // did_number or empty = use server default
 
   // Refs — don't trigger re-renders
   const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -505,6 +510,17 @@ export function AdminDialer() {
     connectEvents();
     initPhone();
 
+    // Load all DIDs (admin can call from any, company only their own)
+    const portal = typeof window !== 'undefined' ? getPortal() : 'admin';
+    const didPath = portal === 'customer' ? '/dids/company/mine' : '/dids';
+    const token = typeof window !== 'undefined' ? getAccessToken() : '';
+    
+    fetch(`${API}${didPath}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.data) setDids(d.data); })
+      .catch(() => {});
+
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (sseRef.current) sseRef.current.close();
@@ -570,7 +586,10 @@ export function AdminDialer() {
         res = await fetch(`${DIALER}/calls/pstn`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: num }),
+          body: JSON.stringify({
+            to: num,
+            ...(selectedDid ? { caller_id: selectedDid } : {}),
+          }),
         });
       }
 
@@ -780,6 +799,31 @@ export function AdminDialer() {
             }`}
             dangerouslySetInnerHTML={{ __html: banner.html }}
           />
+        )}
+
+        {/* ── DID Caller ID Selector ────────────────────────────────────── */}
+        {callState === 'idle' && (
+          <div className="w-full mb-4">
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+              <Hash size={10} /> Caller ID (DID)
+            </label>
+            <div className="relative">
+              <select
+                id="admin-dialer-did-select"
+                value={selectedDid}
+                onChange={e => setSelectedDid(e.target.value)}
+                className="w-full appearance-none bg-slate-50/70 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-300 transition-all cursor-pointer pr-8"
+              >
+                <option value="">— Server Default —</option>
+                {dids.map(d => (
+                  <option key={d._id} value={d.did_number}>
+                    {d.did_number}{d.label ? ` · ${d.label}` : ''} [{d.status}]
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
         )}
 
         {/* ── Display ──────────────────────────────────────────────────── */}
