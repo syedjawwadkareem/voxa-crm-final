@@ -102,6 +102,7 @@ export const api = {
   get:      <T>(path: string) => request<T>(path, { method: 'GET' }),
   post:     <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body }),
   postForm: <T>(path: string, body: FormData) => request<T>(path, { method: 'POST', body }),
+  put:      <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body }),
   patch:    <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete:   <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
@@ -423,4 +424,130 @@ export const didsApi = {
   getMineHistory: (didId: string) =>
     api.get<ApiSuccess<DidHistoryRow[]>>(`/dids/company/mine/${didId}/history`),
 };
+
+// ── AI Agents (Voxa AI Pipeline) ──────────────────────────────────────────────
+
+export type AiCallStatus = 'queued' | 'ringing' | 'completed' | 'no_answer' | 'voicemail' | 'transferred' | 'failed';
+
+export interface TransferDestination {
+  name: string;
+  phone_number: string;
+}
+
+export interface AgentConfig {
+  _id: string;
+  pipeline_config_id: string | null;
+  company_id: { _id: string; name: string; status: string } | string | null;
+  name: string;
+  language: string;
+  tone: string;
+  script: string;
+  voice: string;
+  structured_output_schema_id: string | null;
+  webhook_url: string;
+  webhook_secret: string;
+  hangup_enabled: boolean;
+  dtmf_enabled: boolean;
+  voicemail_detection_enabled: boolean;
+  voicemail_message: string | null;
+  speak_first: 'agent' | 'caller';
+  greeting_message: string | null;
+  goodbye_message: string | null;
+  goodbye_message_verbatim: boolean;
+  idle_timeout_seconds: number;
+  idle_max_reprompts: number;
+  call_recording_enabled: boolean;
+  noise_cancellation_enabled: boolean;
+  transfer_enabled: boolean;
+  transfer_destinations: TransferDestination[];
+  is_active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TranscriptTurn {
+  role: 'agent' | 'caller';
+  text: string;
+  ts: string;
+}
+
+export interface AiCall {
+  _id: string;
+  call_id: string | null;
+  agent_config_id: { _id: string; name: string; voice: string } | string | null;
+  company_id: { _id: string; name: string } | string | null;
+  phone_number: string;
+  from_number: string;
+  direction: string;
+  status: AiCallStatus;
+  ended_reason: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  transcript: TranscriptTurn[];
+  structured_output: Record<string, unknown> | null;
+  recording_url: string | null;
+  createdAt: string;
+}
+
+export interface CreateAgentConfigPayload {
+  company_id?: string;
+  name: string;
+  language?: string;
+  tone: string;
+  script: string;
+  voice: string;
+  structured_output_schema_id?: string | null;
+  webhook_url?: string;
+  webhook_secret?: string;
+  hangup_enabled?: boolean;
+  dtmf_enabled?: boolean;
+  voicemail_detection_enabled?: boolean;
+  voicemail_message?: string | null;
+  speak_first?: 'agent' | 'caller';
+  greeting_message?: string | null;
+  goodbye_message?: string | null;
+  goodbye_message_verbatim?: boolean;
+  idle_timeout_seconds?: number;
+  idle_max_reprompts?: number;
+  call_recording_enabled?: boolean;
+  noise_cancellation_enabled?: boolean;
+  transfer_enabled?: boolean;
+  transfer_destinations?: TransferDestination[];
+}
+
+export const aiAgentsApi = {
+  // ── Admin ──────────────────────────────────────────────────────────────
+  listConfigs:   (companyId?: string) =>
+    api.get<ApiSuccess<AgentConfig[]>>(`/ai-agents/configs${companyId ? `?company_id=${companyId}` : ''}`),
+  getConfig:     (id: string) => api.get<ApiSuccess<AgentConfig>>(`/ai-agents/configs/${id}`),
+  createConfig:  (payload: CreateAgentConfigPayload) =>
+    api.post<ApiSuccess<AgentConfig>>('/ai-agents/configs', payload),
+  updateConfig:  (id: string, payload: Partial<CreateAgentConfigPayload>) =>
+    api.put<ApiSuccess<AgentConfig>>(`/ai-agents/configs/${id}`, payload),
+  deleteConfig:  (id: string) => api.delete<ApiSuccess<null>>(`/ai-agents/configs/${id}`),
+
+  listCalls:     (params?: { company_id?: string; status?: string }) => {
+    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
+    return api.get<ApiSuccess<AiCall[]>>(`/ai-agents/calls${qs}`);
+  },
+  getCall:       (id: string) => api.get<ApiSuccess<AiCall>>(`/ai-agents/calls/${id}`),
+  triggerCall:   (payload: { agent_config_id: string; phone_number: string; from_number: string }) =>
+    api.post<ApiSuccess<AiCall>>('/ai-agents/calls/trigger', payload),
+
+  // ── Company ────────────────────────────────────────────────────────────
+  companyListConfigs:  () => api.get<ApiSuccess<AgentConfig[]>>('/ai-agents/company/configs'),
+  companyCreateConfig: (payload: Partial<CreateAgentConfigPayload>) =>
+    api.post<ApiSuccess<AgentConfig>>('/ai-agents/company/configs', payload),
+  companyUpdateConfig: (id: string, payload: Partial<CreateAgentConfigPayload>) =>
+    api.put<ApiSuccess<AgentConfig>>(`/ai-agents/company/configs/${id}`, payload),
+  companyDeleteConfig: (id: string) => api.delete<ApiSuccess<null>>(`/ai-agents/company/configs/${id}`),
+
+  companyListCalls:   (status?: string) =>
+    api.get<ApiSuccess<AiCall[]>>(`/ai-agents/company/calls${status ? `?status=${status}` : ''}`),
+  companyGetCall:     (id: string) => api.get<ApiSuccess<AiCall>>(`/ai-agents/company/calls/${id}`),
+  companyTriggerCall: (payload: { agent_config_id: string; phone_number: string; from_number: string }) =>
+    api.post<ApiSuccess<AiCall>>('/ai-agents/company/calls/trigger', payload),
+};
+
 

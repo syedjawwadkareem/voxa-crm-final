@@ -5,7 +5,7 @@
 // Portal = "customer". Nav items filtered by user permissions.
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, ShieldCheck, LogOut, X, PhoneCall, Layers, ClipboardList, Hash } from 'lucide-react';
+import { LayoutDashboard, Users, ShieldCheck, LogOut, X, PhoneCall, Layers, ClipboardList, Hash, Bot } from 'lucide-react';
 import { authApi } from '@/lib/api';
 import { clearSession, getUser, hasPermission } from '@/lib/auth';
 import type { LucideIcon } from 'lucide-react';
@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'omnichannel',  label: 'Omnichannel',  href: '/company/omnichannel',  icon: Layers },
   { key: 'ivr',          label: 'IVR & Campaigns', href: '/company/ivr',       icon: PhoneCall },
   { key: 'dids',         label: 'DID Numbers',  href: '/company/dids',         icon: Hash },
+  { key: 'ai-agents',   label: 'AI Agents',    href: '/company/ai-agents',    icon: Bot  },
   { key: 'logs',         label: 'Logs',         href: '/company/logs',         icon: PhoneCall },
   { key: 'forms',        label: 'Forms',        href: '/company/forms',        icon: ClipboardList },
   { key: 'leads',        label: 'Lead Management', href: '/company/leads',     icon: Users },
