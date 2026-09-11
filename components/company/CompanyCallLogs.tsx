@@ -1,15 +1,19 @@
 'use client';
 
 // ─── Company Call Logs ─────────────────────────────────────────────────────────
-// Call history for company users. No company filter — scoped to their org.
-// Uses same telephony API as the admin Master Logs.
+// Call history for company users. Scoped to company org with listening,
+// recording unique id checks, and complete AI transcribe & summary viewing.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   PhoneOutgoing, PhoneIncoming, PhoneMissed,
   RefreshCw, Search, ChevronLeft, ChevronRight,
-  Eye, Headphones, Archive, RotateCcw, X, Activity, ArrowUpDown, Filter
+  Eye, Headphones, Archive, RotateCcw, X, Activity, ArrowUpDown, Filter,
+  Sparkles, AlertCircle, CheckCircle
 } from 'lucide-react';
+import { telephonyApi } from '@/lib/api';
+import { CallAnalysisModal } from '../admin/CallAnalysisModal';
+import { CallAudioPlayer, AudioPlayerCall } from '../admin/CallAudioPlayer';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface CallRecord {
@@ -108,16 +112,6 @@ function getStatusConfig(status: string) {
   };
 }
 
-const ALL_STATUSES: CallStatus[] = ['all', 'ANSWERED', 'NO ANSWER', 'BUSY', 'FAILED', 'CONGESTION'];
-const STATUS_LABELS: Record<CallStatus, string> = {
-  'all': 'All Statuses',
-  'ANSWERED': 'Answered',
-  'NO ANSWER': 'No Answer',
-  'BUSY': 'Busy',
-  'FAILED': 'Failed',
-  'CONGESTION': 'Congestion',
-};
-
 // ── API ────────────────────────────────────────────────────────────────────────
 const API_BASE = 'http://172.16.17.127/api/api.php';
 
@@ -135,20 +129,22 @@ async function fetchCallLogs(): Promise<CallRecord[]> {
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const TH: React.CSSProperties = {
-  padding: '10px 14px', textAlign: 'left', fontSize: 11,
-  fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase',
-  letterSpacing: '0.05em', whiteSpace: 'nowrap',
+  padding: '10px 12px', textAlign: 'left', fontSize: 11,
+  fontWeight: 600, color: '#94a3b8',
+  textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
 };
-const TD: React.CSSProperties = { padding: '10px 14px', verticalAlign: 'middle' };
+const TD: React.CSSProperties = { padding: '9px 12px', verticalAlign: 'middle' };
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
-function ActionBtn({ id, icon, label, color, onClick }: {
-  id: string; icon: React.ReactNode; label: string; color: string; onClick?: () => void;
+function ActionBtn({ id, icon, label, color, onClick, disabled }: {
+  id: string; icon: React.ReactNode; label: string; color: string; onClick?: () => void; disabled?: boolean;
 }) {
   return (
-    <button id={id} onClick={onClick} title={label}
-      className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80 active:scale-95"
-      style={{ borderColor: `${color}40`, color, background: `${color}10` }}>
+    <button
+      id={id} onClick={onClick} title={label} disabled={disabled}
+      className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all hover:opacity-80 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{ borderColor: `${color}40`, color, background: `${color}10` }}
+    >
       {icon} {label}
     </button>
   );
@@ -158,21 +154,24 @@ function PaginationBtn({ id, disabled, onClick, label }: {
   id: string; disabled: boolean; onClick: () => void; label: React.ReactNode;
 }) {
   return (
-    <button id={id} disabled={disabled} onClick={onClick}
+    <button
+      id={id} disabled={disabled} onClick={onClick}
       className="w-7 h-7 flex items-center justify-center rounded border text-xs font-semibold transition-colors"
       style={{
         borderColor: disabled ? '#e2e8f0' : '#cbd5e1',
         color: disabled ? '#cbd5e1' : '#475569',
         background: disabled ? '#f8fafc' : 'white',
         cursor: disabled ? 'not-allowed' : 'pointer',
-      }}>
+      }}
+    >
       {label}
     </button>
   );
 }
 
 function DirectionIcon({ direction, status }: { direction: 'out' | 'in'; status: string }) {
-  const isNoAnswer = ['NO ANSWER', 'BUSY', 'FAILED', 'CONGESTION'].includes(status);
+  const isNoAnswer = status === 'NO ANSWER' || status === 'BUSY' || status === 'FAILED' || status === 'CONGESTION';
+
   if (isNoAnswer) return <PhoneMissed size={13} color="#ef4444" />;
   if (direction === 'out') return <PhoneOutgoing size={13} color="#3b82f6" />;
   return <PhoneIncoming size={13} color="#22c55e" />;
@@ -199,12 +198,24 @@ function StatusBadge({ status }: { status: string }) {
 // ── Main Component ─────────────────────────────────────────────────────────────
 const PAGE_SIZE = 50;
 
+const ALL_STATUSES: CallStatus[] = ['all', 'ANSWERED', 'NO ANSWER', 'BUSY', 'FAILED', 'CONGESTION'];
+const STATUS_LABELS: Record<CallStatus, string> = {
+  'all': 'All Statuses',
+  'ANSWERED': 'Answered',
+  'NO ANSWER': 'No Answer',
+  'BUSY': 'Busy',
+  'FAILED': 'Failed',
+  'CONGESTION': 'Congestion',
+};
+
 export function CompanyCallLogs() {
   const [logs, setLogs] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Filters
   const [callStatus, setCallStatus] = useState<CallStatus>('all');
   const [viewStatus, setViewStatus] = useState<ViewStatus>('active');
   const [startDate, setStartDate] = useState('');
@@ -213,12 +224,26 @@ export function CompanyCallLogs() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [archived, setArchived] = useState<Set<number>>(new Set());
 
+  // Dropdowns
   const [statusOpen, setStatusOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
 
+  // Audio Player & AI View state
+  const [playingCall, setPlayingCall] = useState<AudioPlayerCall | null>(null);
+  const [viewingCall, setViewingCall] = useState<CallRecord | null>(null);
+  const [checkingAudioId, setCheckingAudioId] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ type: 'error' | 'info' | 'success'; text: string } | null>(null);
+
+  const showToast = (type: 'error' | 'info' | 'success', text: string) => {
+    setToastMessage({ type, text });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
-    try { setLogs(await fetchCallLogs()); }
+    try {
+      setLogs(await fetchCallLogs());
+    }
     catch (e: any) { setError(e.message ?? 'Failed to load call logs'); }
     finally { setLoading(false); }
   }, []);
@@ -228,33 +253,22 @@ export function CompanyCallLogs() {
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (!(e.target as Element).closest('.filter-dropdown-container')) {
-        setStatusOpen(false);
-        setViewOpen(false);
+        setStatusOpen(false); setViewOpen(false);
       }
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Count per real status for dropdown badges
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    logs.forEach(l => {
-      const s = (l.status || 'UNKNOWN').toUpperCase();
-      counts[s] = (counts[s] || 0) + 1;
-    });
-    return counts;
-  }, [logs]);
-
   const filtered = useMemo(() => logs.filter((log) => {
-    const rawStatus = (log.status || '').toUpperCase();
     const isArc = archived.has(log.id);
+    const rawStatus = (log.status || '').toUpperCase();
 
     // View Status
     if (viewStatus === 'active' && isArc) return false;
     if (viewStatus === 'archive' && !isArc) return false;
 
-    // Call Status — match real API status field
+    // Call Status
     if (callStatus !== 'all' && rawStatus !== callStatus) return false;
 
     // Date range
@@ -270,9 +284,10 @@ export function CompanyCallLogs() {
       }
     }
 
+    // Search
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      if (![log.callerid, log.destination, log.extension, log.context, log.status].join(' ').toLowerCase().includes(q)) return false;
+      if (![log.callerid, log.destination, log.extension, log.context, log.status, log.uniqueid].filter(Boolean).join(' ').toLowerCase().includes(q)) return false;
     }
     return true;
   }), [logs, archived, viewStatus, callStatus, startDate, endDate, searchTerm]);
@@ -291,9 +306,70 @@ export function CompanyCallLogs() {
     if (allChecked) setSelectedIds((p) => { const n = new Set(p); paginated.forEach((r) => n.delete(r.id)); return n; });
     else setSelectedIds((p) => { const n = new Set(p); paginated.forEach((r) => n.add(r.id)); return n; });
   }
+  function bulkArchive() {
+    setArchived((p) => { const n = new Set(p); selectedIds.forEach((id) => n.add(id)); return n; });
+    setSelectedIds(new Set());
+  }
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    logs.forEach(l => {
+      const s = (l.status || 'UNKNOWN').toUpperCase();
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    return counts;
+  }, [logs]);
+
+  const handleListenClick = async (log: CallRecord) => {
+    const targetUniqueId = log.uniqueid || String(log.id);
+    const direction = getCallDirection(log);
+    const customerPhone = direction === 'out' ? log.destination : log.callerid;
+
+    setCheckingAudioId(log.id);
+
+    try {
+      const res = await telephonyApi.checkRecording({
+        uniqueid: targetUniqueId,
+        phone: customerPhone,
+      });
+
+      if (res.data && res.data.exists) {
+        setPlayingCall({
+          id: log.id,
+          uniqueid: targetUniqueId,
+          callerid: log.callerid,
+          destination: log.destination,
+          direction: direction,
+          start_time: log.start_time,
+          duration: log.duration,
+        });
+      } else {
+        showToast('error', `Recording not found for call (${targetUniqueId}) in /var/data/`);
+      }
+    } catch (err: any) {
+      showToast('error', `Recording not found for call (${targetUniqueId})`);
+    } finally {
+      setCheckingAudioId(null);
+    }
+  };
 
   return (
-    <div className="flex flex-col" style={{ fontFamily: 'Inter, sans-serif', height: '100%' }}>
+    <div className="flex flex-col h-full bg-white relative" style={{ fontFamily: 'Inter, sans-serif', minHeight: '100%' }}>
+
+      {/* Toast Alert */}
+      {toastMessage && (
+        <div className="fixed top-20 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl border bg-white animate-slideIn">
+          {toastMessage.type === 'error' ? (
+            <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
+          ) : (
+            <CheckCircle size={18} className="text-teal-500 flex-shrink-0" />
+          )}
+          <span className="text-xs font-semibold text-slate-800">{toastMessage.text}</span>
+          <button onClick={() => setToastMessage(null)} className="ml-2 text-slate-400 hover:text-slate-600">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── Filter Bar ─────────────────────────────────────────────────────── */}
       <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap gap-3 items-end relative z-20">
@@ -325,10 +401,11 @@ export function CompanyCallLogs() {
         {/* Call Status */}
         <div className="relative filter-dropdown-container">
           <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Call Status</label>
-          <button id="co-status-btn"
+          <button
             onClick={(e) => { e.stopPropagation(); setStatusOpen((o) => !o); setViewOpen(false); }}
             className="flex items-center gap-2 px-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            style={{ height: 34, minWidth: 160 }}>
+            style={{ height: 34, minWidth: 160 }}
+          >
             <Activity size={13} className="text-slate-400" />
             <span className="flex-1 text-left text-xs">
               {STATUS_LABELS[callStatus]}
@@ -402,11 +479,10 @@ export function CompanyCallLogs() {
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
-              id="co-logs-search"
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search numbers, status, or extension…"
+              placeholder="Search numbers, ID, status, context…"
               className="w-full pl-8 pr-8 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-colors"
               style={{ height: 34 }}
             />
@@ -423,13 +499,15 @@ export function CompanyCallLogs() {
           <button
             onClick={refresh}
             className="flex items-center gap-1.5 px-4 text-xs font-semibold text-white rounded-lg transition-all hover:opacity-90 active:scale-95"
-            style={{ height: 34, background: 'linear-gradient(135deg, #3b82f6, #60a5fa)' }}
+            style={{ height: 34, background: 'linear-gradient(135deg, #2563eb, #3b82f6)' }}
           >
             <Filter size={12} /> Apply Filters
           </button>
-          <button id="co-refresh-btn" onClick={refresh}
+          <button
+            onClick={refresh}
             className="flex items-center gap-1.5 px-3 text-xs font-medium border border-slate-200 bg-white text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-            style={{ height: 34 }}>
+            style={{ height: 34 }}
+          >
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
         </div>
@@ -439,13 +517,9 @@ export function CompanyCallLogs() {
       {someChecked && (
         <div className="px-6 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-3">
           <span className="text-xs font-semibold text-blue-700">{selectedIds.size} selected</span>
-          <button
-            onClick={() => {
-              setArchived((p) => { const n = new Set(p); selectedIds.forEach((id) => n.add(id)); return n; });
-              setSelectedIds(new Set());
-            }}
+          <button onClick={bulkArchive}
             className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors">
-            <Archive size={11} /> Archive Selected
+            <Archive size={11} /> Bulk Archive
           </button>
           <button onClick={() => setSelectedIds(new Set())} className="text-xs text-slate-400 hover:text-slate-600">
             Clear
@@ -490,7 +564,8 @@ export function CompanyCallLogs() {
                     style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#3b82f6' }} />
                 </th>
                 <th style={TH}>Date &amp; Time ↑</th>
-                <th style={TH}>Number</th>
+                <th style={TH}>ID / Ext</th>
+                <th style={TH}>Customer Number</th>
                 <th style={TH}>Direction</th>
                 <th style={TH}>Duration</th>
                 <th style={TH}>Bill Sec</th>
@@ -505,6 +580,7 @@ export function CompanyCallLogs() {
                 const isArc = archived.has(log.id);
                 const isSel = selectedIds.has(log.id);
                 const rowBg = isSel ? '#eff6ff' : idx % 2 === 0 ? 'white' : '#fafbfc';
+                const isCheckingThis = checkingAudioId === log.id;
 
                 return (
                   <tr key={log.id} style={{ background: rowBg, borderBottom: '1px solid #f1f5f9' }}>
@@ -516,6 +592,16 @@ export function CompanyCallLogs() {
                       <span style={{ color: '#334155', fontWeight: 500, fontSize: 12 }}>
                         {formatDateTime(log.start_time)}
                       </span>
+                    </td>
+                    <td style={TD}>
+                      <div className="flex flex-col">
+                        <span style={{ color: '#2563eb', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>
+                          {log.uniqueid || log.id}
+                        </span>
+                        <span style={{ color: '#94a3b8', fontSize: 10 }}>
+                          Ext: {log.extension}
+                        </span>
+                      </div>
                     </td>
                     <td style={TD}>
                       <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12 }}>
@@ -548,9 +634,22 @@ export function CompanyCallLogs() {
                       <StatusBadge status={rawStatus} />
                     </td>
                     <td style={{ ...TD, whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <ActionBtn id={`co-view-${log.id}`} icon={<Eye size={11} />} label="View" color="#3b82f6" />
-                        <ActionBtn id={`co-listen-${log.id}`} icon={<Headphones size={11} />} label="Listen" color="#8b5cf6" />
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                        <ActionBtn
+                          id={`co-view-${log.id}`}
+                          icon={<Sparkles size={11} />}
+                          label="View"
+                          color="#3b82f6"
+                          onClick={() => setViewingCall(log)}
+                        />
+                        <ActionBtn
+                          id={`co-listen-${log.id}`}
+                          icon={isCheckingThis ? <RefreshCw size={11} className="animate-spin" /> : <Headphones size={11} />}
+                          label={isCheckingThis ? 'Loading…' : 'Listen'}
+                          color="#8b5cf6"
+                          disabled={isCheckingThis}
+                          onClick={() => handleListenClick(log)}
+                        />
                         {isArc
                           ? <ActionBtn id={`co-unarchive-${log.id}`} icon={<RotateCcw size={11} />} label="Unarchive" color="#64748b"
                             onClick={() => setArchived((p) => { const n = new Set(p); n.delete(log.id); return n; })} />
@@ -580,6 +679,27 @@ export function CompanyCallLogs() {
             <PaginationBtn id="co-last-page" disabled={page === totalPages} onClick={() => setPage(totalPages)} label="»" />
           </div>
         </div>
+      )}
+
+      {/* ── Audio Player Floating Bar ──────────────────────────────────────── */}
+      {playingCall && (
+        <CallAudioPlayer
+          call={playingCall}
+          onClose={() => setPlayingCall(null)}
+          onViewDetails={(call) => {
+            const fullLog = logs.find(l => (l.uniqueid && l.uniqueid === call.uniqueid) || l.id === call.id);
+            if (fullLog) setViewingCall(fullLog);
+          }}
+        />
+      )}
+
+      {/* ── AI Analysis & Full Transcript Modal ────────────────────────────── */}
+      {viewingCall && (
+        <CallAnalysisModal
+          call={viewingCall}
+          isOpen={Boolean(viewingCall)}
+          onClose={() => setViewingCall(null)}
+        />
       )}
     </div>
   );

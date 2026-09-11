@@ -2,19 +2,23 @@
 
 // ─── Master Call Logs — Admin Portal ──────────────────────────────────────────
 // Full-page call history table with filters: company, date, call status,
-// view status, and keyword search. Matches the "Master Call History" design.
+// view status, keyword search, audio listening with uniqueid resolution,
+// and AI transcription & summary viewing modal via CRM Call Recording Pipeline.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   PhoneOutgoing, PhoneIncoming, PhoneMissed,
   RefreshCw, Search, ChevronLeft, ChevronRight,
   Eye, Headphones, Archive, RotateCcw, Filter,
-  X, Activity, ArrowUpDown, Building2, PhoneOff
+  X, Activity, ArrowUpDown, Building2, AlertCircle,
+  Sparkles, CheckCircle
 } from 'lucide-react';
-import { companiesApi } from '@/lib/api';
+import { companiesApi, telephonyApi } from '@/lib/api';
+import { CallAnalysisModal } from './CallAnalysisModal';
+import { CallAudioPlayer, AudioPlayerCall } from './CallAudioPlayer';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-interface CallRecord {
+export interface CallRecord {
   id: number;
   extension: string;
   callerid: string;
@@ -32,7 +36,6 @@ interface CallRecord {
 }
 
 // API raw statuses
-type ApiStatus = 'ANSWERED' | 'NO ANSWER' | 'BUSY' | 'FAILED' | 'CONGESTION';
 type CallStatus = 'all' | 'ANSWERED' | 'NO ANSWER' | 'BUSY' | 'FAILED' | 'CONGESTION';
 type ViewStatus = 'active' | 'archive';
 
@@ -59,7 +62,6 @@ function getCallDirection(log: CallRecord): 'out' | 'in' {
 }
 
 // ── Status Config ─────────────────────────────────────────────────────────────
-// Maps raw API status → display label, colors, icon
 const STATUS_CONFIG: Record<string, {
   label: string;
   bg: string;
@@ -138,14 +140,14 @@ const TH: React.CSSProperties = {
 const TD: React.CSSProperties = { padding: '9px 12px', verticalAlign: 'middle' };
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
-function ActionBtn({ id, icon, label, color, onClick }: {
-  id: string; icon: React.ReactNode; label: string; color: string; onClick?: () => void;
+function ActionBtn({ id, icon, label, color, onClick, disabled = false }: {
+  id: string; icon: React.ReactNode; label: string; color: string; onClick?: () => void; disabled?: boolean;
 }) {
   return (
     <button
-      id={id} onClick={onClick} title={label}
-      className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80 active:scale-95"
-      style={{ borderColor: `${color}40`, color, background: `${color}10` }}
+      id={id} onClick={onClick} title={label} disabled={disabled}
+      className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all hover:opacity-85 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{ borderColor: `${color}40`, color, background: `${color}12` }}
     >
       {icon} {label}
     </button>
@@ -175,7 +177,6 @@ function PaginationBtn({ id, disabled, onClick, label }: {
 function DirectionIcon({ direction, status }: { direction: 'out' | 'in'; status: string }) {
   const isNoAnswer = status === 'NO ANSWER' || status === 'BUSY' || status === 'FAILED' || status === 'CONGESTION';
 
-  if (isNoAnswer && direction === 'out') return <PhoneMissed size={13} color="#ef4444" />;
   if (isNoAnswer) return <PhoneMissed size={13} color="#ef4444" />;
   if (direction === 'out') return <PhoneOutgoing size={13} color="#3b82f6" />;
   return <PhoneIncoming size={13} color="#22c55e" />;
@@ -237,6 +238,17 @@ export function MasterLogs() {
 
   const [companies, setCompanies] = useState<any[]>([]);
 
+  // ── Recording Audio Player & AI Analysis Modal State ─────────────────────────
+  const [playingCall, setPlayingCall] = useState<AudioPlayerCall | null>(null);
+  const [viewingCall, setViewingCall] = useState<CallRecord | null>(null);
+  const [checkingAudioId, setCheckingAudioId] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ type: 'error' | 'info' | 'success'; text: string } | null>(null);
+
+  const showToast = (type: 'error' | 'info' | 'success', text: string) => {
+    setToastMessage({ type, text });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -293,7 +305,7 @@ export function MasterLogs() {
     // Search
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      if (![log.callerid, log.destination, log.extension, log.context, log.status].join(' ').toLowerCase().includes(q)) return false;
+      if (![log.callerid, log.destination, log.extension, log.context, log.status, log.uniqueid].filter(Boolean).join(' ').toLowerCase().includes(q)) return false;
     }
     return true;
   }), [logs, archived, viewStatus, callStatus, companyId, startDate, endDate, searchTerm]);
@@ -327,8 +339,62 @@ export function MasterLogs() {
     return counts;
   }, [logs]);
 
+  // ── Handle Listen Action ───────────────────────────────────────────────────
+  const handleListenClick = async (log: CallRecord) => {
+    const targetUniqueId = log.uniqueid || String(log.id);
+    const direction = getCallDirection(log);
+    const customerPhone = direction === 'out' ? log.destination : log.callerid;
+
+    setCheckingAudioId(log.id);
+
+    try {
+      const res = await telephonyApi.checkRecording({
+        uniqueid: targetUniqueId,
+        phone: customerPhone,
+      });
+
+      if (res.data && res.data.exists) {
+        setPlayingCall({
+          id: log.id,
+          uniqueid: targetUniqueId,
+          callerid: log.callerid,
+          destination: log.destination,
+          direction: direction,
+          start_time: log.start_time,
+          duration: log.duration,
+        });
+      } else {
+        showToast('error', `Recording not found for call (${targetUniqueId}) in /var/data/`);
+      }
+    } catch (err: any) {
+      showToast('error', `Recording not found for call (${targetUniqueId})`);
+    } finally {
+      setCheckingAudioId(null);
+    }
+  };
+
+  // ── Handle View Action ─────────────────────────────────────────────────────
+  const handleViewClick = (log: CallRecord) => {
+    setViewingCall(log);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-white" style={{ fontFamily: 'Inter, sans-serif', minHeight: '100%' }}>
+    <div className="flex flex-col h-full bg-white relative" style={{ fontFamily: 'Inter, sans-serif', minHeight: '100%' }}>
+
+      {/* ── Toast Notification ─────────────────────────────────────────────── */}
+      {toastMessage && (
+        <div className="fixed top-20 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl border bg-white animate-slideIn">
+          {toastMessage.type === 'error' ? (
+            <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
+          ) : (
+            <CheckCircle size={18} className="text-teal-500 flex-shrink-0" />
+          )}
+          <span className="text-xs font-semibold text-slate-800">{toastMessage.text}</span>
+          <button onClick={() => setToastMessage(null)} className="ml-2 text-slate-400 hover:text-slate-600">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── Filter Bar ─────────────────────────────────────────────────────── */}
       <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap gap-3 items-end relative z-20">
@@ -476,7 +542,7 @@ export function MasterLogs() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search numbers, status, or phrase…"
+              placeholder="Search numbers, ID, status, or context…"
               className="w-full pl-8 pr-8 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-colors"
               style={{ height: 34 }}
             />
@@ -561,6 +627,7 @@ export function MasterLogs() {
                   />
                 </th>
                 <th style={TH}>Date &amp; Time ↑</th>
+                <th style={TH}>Unique ID / Ext</th>
                 <th style={TH}>Customer Number</th>
                 <th style={TH}>Direction</th>
                 <th style={TH}>Duration</th>
@@ -576,6 +643,7 @@ export function MasterLogs() {
                 const isArc = archived.has(log.id);
                 const isSel = selectedIds.has(log.id);
                 const rowBg = isSel ? '#f0fdf9' : idx % 2 === 0 ? 'white' : '#fafbfc';
+                const isCheckingThis = checkingAudioId === log.id;
 
                 return (
                   <tr key={log.id} style={{ background: rowBg, borderBottom: '1px solid #f1f5f9' }}>
@@ -589,7 +657,17 @@ export function MasterLogs() {
                       </span>
                     </td>
                     <td style={TD}>
-                      <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12 }}>
+                      <div className="flex flex-col">
+                        <span style={{ color: '#0f766e', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>
+                          {log.uniqueid || log.id}
+                        </span>
+                        <span style={{ color: '#94a3b8', fontSize: 10 }}>
+                          Ext: {log.extension}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={TD}>
+                      <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12, fontWeight: 500 }}>
                         {direction === 'out' ? log.destination : log.callerid}
                       </span>
                     </td>
@@ -619,9 +697,26 @@ export function MasterLogs() {
                       <StatusBadge status={rawStatus} />
                     </td>
                     <td style={{ ...TD, whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <ActionBtn id={`ml-view-${log.id}`} icon={<Eye size={11} />} label="View" color="#3b82f6" />
-                        <ActionBtn id={`ml-listen-${log.id}`} icon={<Headphones size={11} />} label="Listen" color="#8b5cf6" />
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                        {/* View Action - opens full transcript & summary */}
+                        <ActionBtn
+                          id={`ml-view-${log.id}`}
+                          icon={<Sparkles size={11} />}
+                          label="View"
+                          color="#3b82f6"
+                          onClick={() => handleViewClick(log)}
+                        />
+
+                        {/* Listen Action - checks var/data audio and plays */}
+                        <ActionBtn
+                          id={`ml-listen-${log.id}`}
+                          icon={isCheckingThis ? <RefreshCw size={11} className="animate-spin" /> : <Headphones size={11} />}
+                          label={isCheckingThis ? 'Loading…' : 'Listen'}
+                          color="#8b5cf6"
+                          disabled={isCheckingThis}
+                          onClick={() => handleListenClick(log)}
+                        />
+
                         {isArc
                           ? <ActionBtn id={`ml-unarchive-${log.id}`} icon={<RotateCcw size={11} />} label="Unarchive" color="#64748b"
                             onClick={() => setArchived((p) => { const n = new Set(p); n.delete(log.id); return n; })} />
@@ -651,6 +746,27 @@ export function MasterLogs() {
             <PaginationBtn id="ml-last-page" disabled={page === totalPages} onClick={() => setPage(totalPages)} label="»" />
           </div>
         </div>
+      )}
+
+      {/* ── Audio Player Floating Bar ──────────────────────────────────────── */}
+      {playingCall && (
+        <CallAudioPlayer
+          call={playingCall}
+          onClose={() => setPlayingCall(null)}
+          onViewDetails={(call) => {
+            const fullLog = logs.find(l => (l.uniqueid && l.uniqueid === call.uniqueid) || l.id === call.id);
+            if (fullLog) setViewingCall(fullLog);
+          }}
+        />
+      )}
+
+      {/* ── AI Analysis & Full Transcript Modal ────────────────────────────── */}
+      {viewingCall && (
+        <CallAnalysisModal
+          call={viewingCall}
+          isOpen={Boolean(viewingCall)}
+          onClose={() => setViewingCall(null)}
+        />
       )}
     </div>
   );

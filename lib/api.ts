@@ -550,4 +550,122 @@ export const aiAgentsApi = {
     api.post<ApiSuccess<AiCall>>('/ai-agents/company/calls/trigger', payload),
 };
 
+// ─── CRM Call Recording Pipeline & Telephony Types ───────────────────────────
+
+export interface TranscriptSegment {
+  speaker: string;
+  start_time: number;
+  end_time: number;
+  text: string;
+  language?: string | null;
+}
+
+export interface Transcript {
+  segments: TranscriptSegment[];
+  full_text: string;
+}
+
+export type CallOutcome =
+  | 'interested'
+  | 'not_interested'
+  | 'follow_up_required'
+  | 'converted'
+  | 'complaint'
+  | 'other';
+
+export type CallSentiment = 'positive' | 'neutral' | 'negative';
+
+export interface CallSummary {
+  outcome: CallOutcome;
+  sentiment: CallSentiment;
+  caller_intent: string;
+  key_points: string[];
+  action_items: string[];
+  topics_discussed: string[];
+  language_notes?: string | null;
+}
+
+export interface ProcessResult {
+  call_id: string;
+  transcript: Transcript;
+  summary: CallSummary;
+}
+
+export interface SummarizeResult {
+  call_id: string;
+  summary: CallSummary;
+}
+
+export interface TranscribeResult {
+  call_id: string;
+  transcript: Transcript;
+}
+
+export interface CallAnalysisRecord {
+  _id?: string;
+  call_id: string;
+  uniqueid?: string;
+  callerid?: string;
+  destination?: string;
+  recording_filename?: string | null;
+  recording_url?: string | null;
+  script?: 'urdu' | 'roman_urdu' | 'mixed';
+  transcript: Transcript;
+  summary: CallSummary;
+  status: 'pending' | 'completed' | 'failed';
+  error_message?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const telephonyApi = {
+  checkRecording: (params: { uniqueid?: string; phone?: string; filename?: string }) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    return api.get<ApiSuccess<{ exists: boolean; uniqueid?: string; filename?: string; stream_url: string }>>(`/telephony/recordings/check?${qs}`);
+  },
+
+  getRecordingStreamUrl: (params: { uniqueid?: string; phone?: string; filename?: string }) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    return `${BASE}/telephony/recordings/stream?${qs}`;
+  },
+
+  getCallAnalysis: (callId: string) => {
+    return api.get<ApiSuccess<CallAnalysisRecord>>(`/telephony/calls/${encodeURIComponent(callId)}/analysis`);
+  },
+
+  processCall: (payload: {
+    call_id: string;
+    uniqueid?: string;
+    phone?: string;
+    filename?: string;
+    audio_url?: string;
+    script?: 'urdu' | 'roman_urdu' | 'mixed';
+    force?: boolean;
+  }) => {
+    return api.post<ApiSuccess<CallAnalysisRecord>>('/telephony/calls/process', payload);
+  },
+
+  transcribeCall: (payload: {
+    call_id: string;
+    uniqueid?: string;
+    phone?: string;
+    filename?: string;
+    audio_url?: string;
+    script?: 'urdu' | 'roman_urdu' | 'mixed';
+  }) => {
+    return api.post<ApiSuccess<TranscribeResult>>('/telephony/calls/transcribe', payload);
+  },
+
+  summarizeCall: (payload: {
+    call_id: string;
+    uniqueid?: string;
+    phone?: string;
+    filename?: string;
+    audio_url?: string;
+  }) => {
+    return api.post<ApiSuccess<SummarizeResult>>('/telephony/calls/summarize', payload);
+  },
+};
+
+
 
