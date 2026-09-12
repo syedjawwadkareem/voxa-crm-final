@@ -24,7 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'roles',        label: 'Roles',        href: '/company/roles',        icon: ShieldCheck, permission: 'roles:read' },
   { key: 'omnichannel',  label: 'Omnichannel',  href: '/company/omnichannel',  icon: Layers },
   { key: 'ivr',          label: 'IVR & Campaigns', href: '/company/ivr',       icon: PhoneCall },
-  // { key: 'dids',         label: 'DID Numbers',  href: '/company/dids',         icon: Hash },
+  { key: 'dids',         label: 'DID Management',href: '/company/dids',         icon: Hash },
   { key: 'ai-agents',   label: 'AI Agents',    href: '/company/ai-agents',    icon: Bot  },
   { key: 'logs',         label: 'Logs',         href: '/company/logs',         icon: PhoneCall },
   { key: 'forms',        label: 'Forms',        href: '/company/forms',        icon: ClipboardList },

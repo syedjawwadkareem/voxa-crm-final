@@ -105,6 +105,28 @@ export default function AdminCompaniesPage() {
     fetchPlans();
   }, [fetchCompanies, fetchPlans]);
 
+  const openCreateModal = async () => {
+    setCreateOpen(true);
+    setCreateStep(1);
+    setTempPassword('');
+    setCreateError('');
+    try {
+      const res = await companiesApi.getNextTenantId();
+      const nextId = res.data?.nextTenantId || 'Voxa-tenant-001';
+      setCreateForm(prev => ({
+        ...EMPTY_FORM,
+        planId: plans.length > 0 ? plans[0]._id : prev.planId,
+        tenant: { ...EMPTY_FORM.tenant, tenant_id: nextId }
+      }));
+    } catch {
+      setCreateForm(prev => ({
+        ...EMPTY_FORM,
+        planId: plans.length > 0 ? plans[0]._id : prev.planId,
+        tenant: { ...EMPTY_FORM.tenant, tenant_id: 'Voxa-tenant-001' }
+      }));
+    }
+  };
+
   // ── Create ──────────────────────────────────────────────────────────────────
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -118,7 +140,7 @@ export default function AdminCompaniesPage() {
     try {
       const res = await companiesApi.create(createForm);
       setTempPassword(res.data?.tempPassword ?? '');
-      showToast(`Company "${createForm.name}" created`, 'success');
+      showToast(`Company "${createForm.name}" created successfully`, 'success');
       setCreateForm(EMPTY_FORM);
       fetchCompanies();
     } catch (e: unknown) {
@@ -208,7 +230,7 @@ export default function AdminCompaniesPage() {
             <button
               id="create-company-btn"
               className="btn-primary"
-              onClick={() => { setCreateOpen(true); setCreateStep(1); setTempPassword(''); }}
+              onClick={openCreateModal}
             >
               <Plus size={15} strokeWidth={2} />
               New Company
@@ -381,8 +403,17 @@ export default function AdminCompaniesPage() {
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
                 <div className="col-span-2 text-sm text-slate-600 mb-2">Enter the tenant and contact information for this company.</div>
                 <div>
-                  <label className="text-xs font-medium">Tenant ID *</label>
-                  <input className="input mt-1" required value={createForm.tenant.tenant_id} onChange={(e) => setCreateForm({ ...createForm, tenant: { ...createForm.tenant, tenant_id: e.target.value } })} placeholder="TENANT-123" />
+                  <label className="text-xs font-medium">Tenant ID</label>
+                  <div className="relative mt-1">
+                    <input
+                      className="input bg-slate-100 font-mono text-slate-700 cursor-not-allowed pr-14"
+                      readOnly
+                      value={createForm.tenant.tenant_id || 'Voxa-tenant-001'}
+                    />
+                    {/* <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">
+                      Auto
+                    </span> */}
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-medium">Contact Name *</label>

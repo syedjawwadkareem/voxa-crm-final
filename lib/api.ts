@@ -132,18 +132,19 @@ export const authApi = {
 
 // ── Company endpoints (admin portal) ─────────────────────────────────────────
 
-import type { Company, CreateCompanyPayload, CompanyStatus, TenantInfo } from './types';
+export type { Company, CreateCompanyPayload, CompanyStatus, TenantInfo } from './types';
 
 export const companiesApi = {
   list: () => api.get<ApiSuccess<Company[]>>('/companies'),
   getById: (id: string) => api.get<ApiSuccess<Company>>(`/companies/${id}`),
+  getNextTenantId: () => api.get<ApiSuccess<{ nextTenantId: string }>>('/companies/next-tenant-id'),
   create: (payload: CreateCompanyPayload) => api.post<ApiSuccess<{ company: Company; tempPassword: string }>>('/companies', payload),
   update: (id: string, payload: Partial<CreateCompanyPayload>) => api.patch<ApiSuccess<Company>>(`/companies/${id}`, payload),
   updateStatus: (id: string, status: CompanyStatus) => api.patch<ApiSuccess<Company>>(`/companies/${id}/status`, { status }),
   updateTenant: (id: string, tenant: TenantInfo) => api.post<ApiSuccess<TenantInfo>>(`/companies/${id}/tenant`, tenant),
 };
 
-import type { Plan } from './types';
+export type { Plan } from './types';
 
 export const billingApi = {
   getPlans: () => api.get<ApiSuccess<Plan[]>>('/billing/plans'),
@@ -154,7 +155,7 @@ export const billingApi = {
 
 // ── Admin users endpoints ────────────────────────────────────────────────────
 
-import type { AdminUser, CreateAdminUserPayload } from './types';
+export type { AdminUser, CreateAdminUserPayload } from './types';
 
 export const adminUsersApi = {
   list: () => api.get<ApiSuccess<AdminUser[]>>('/admin-users'),
@@ -167,7 +168,7 @@ export const adminUsersApi = {
 
 // ── Company users endpoints ──────────────────────────────────────────────────
 
-import type { CompanyUser, CreateCompanyUserPayload } from './types';
+export type { CompanyUser, CreateCompanyUserPayload } from './types';
 
 export const companyUsersApi = {
   list: () => api.get<ApiSuccess<CompanyUser[]>>('/company-users'),
@@ -180,7 +181,7 @@ export const companyUsersApi = {
 
 // ── Roles endpoints ───────────────────────────────────────────────────────────
 
-import type { Role, CreateRolePayload } from './types';
+export type { Role, CreateRolePayload } from './types';
 
 export const rolesApi = {
   // Admin portal (Voxa internal roles)
@@ -361,7 +362,7 @@ export const audioApi = {
 
 // ── Orders endpoints ─────────────────────────────────────────────────────────
 
-import type { Order, CreateOrderPayload } from './types';
+export type { Order, CreateOrderPayload } from './types';
 
 export const ordersApi = {
   list: () => api.get<ApiSuccess<Order[]>>('/orders'),
@@ -373,6 +374,16 @@ export const ordersApi = {
 
 // ── DID endpoints ─────────────────────────────────────────────────────────────
 
+export interface DidAssignedUser {
+  _id: string;
+  fullName?: string;
+  email?: string;
+  roleId?: {
+    _id: string;
+    name: string;
+  } | string;
+}
+
 export interface Did {
   _id: string;
   did_number: string;
@@ -380,6 +391,7 @@ export interface Did {
   notes: string;
   status: 'available' | 'assigned' | 'released';
   company_id: { _id: string; name: string; status: string } | null;
+  assigned_user_id?: DidAssignedUser | null;
   campaign_id: string | null;
   ai_flow_id: string | null;
   context: string;
@@ -407,7 +419,7 @@ export interface CreateDidPayload {
   context?: string;
 }
 
-// Admin DID API
+// Admin & Company DID API
 export const didsApi = {
   // Admin
   list:    () => api.get<ApiSuccess<Did[]>>('/dids'),
@@ -423,6 +435,8 @@ export const didsApi = {
   listMine: () => api.get<ApiSuccess<Did[]>>('/dids/company/mine'),
   getMineHistory: (didId: string) =>
     api.get<ApiSuccess<DidHistoryRow[]>>(`/dids/company/mine/${didId}/history`),
+  assignUserToMine: (didId: string, user_id: string | null) =>
+    api.patch<ApiSuccess<Did>>(`/dids/company/mine/${didId}/assign-user`, { user_id }),
 };
 
 // ── AI Agents (Voxa AI Pipeline) ──────────────────────────────────────────────
