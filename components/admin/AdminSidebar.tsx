@@ -105,7 +105,10 @@ export function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         <nav className="p-3 flex-1 overflow-y-auto text-sm">
           <p className="text-xs text-slate-500 uppercase tracking-widest px-2 mb-2 mt-1">Main Menu</p>
           {visibleItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const bestMatch = visibleItems
+              .filter((it) => pathname === it.href || pathname.startsWith(it.href + '/'))
+              .sort((a, b) => b.href.length - a.href.length)[0];
+            const isActive = bestMatch?.key === item.key;
             const Icon = item.icon;
             return (
               <div

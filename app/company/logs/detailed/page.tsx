@@ -1,18 +1,25 @@
 'use client';
 
 // ─── Call Logs Detailed View ───────────────────────────────────────────────────
-// /company/logs/detailed — Master-detail inspector for call logs and call notes.
+// /company/logs/detailed — Master-detail inspector with dynamic Omnichannel Lead
+// resolution, Audio Player playback, and AI Call Summarization & Transcription.
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
-  Calendar, Phone, ArrowUpRight, ArrowDownLeft, PhoneMissed,
-  Search, RefreshCw, Plus, User, MessageSquare, Clock,
-  ChevronRight, Filter, Eye, AlertCircle, FileText, CheckCircle2
+  Phone, ArrowUpRight, ArrowDownLeft, RefreshCw, Plus, User,
+  MessageSquare, AlertCircle, Play, Pause, Volume2, VolumeX,
+  Download, Sparkles, Bot, CheckSquare, ListChecks, HelpCircle,
+  Share2, ShoppingBag, MessageCircle, Layers, CheckCircle2, ChevronDown
 } from 'lucide-react';
 import { CompanyHeader } from '@/components/company/CompanyHeader';
-import { telephonyApi, CallNoteRecord } from '@/lib/api';
-import { StatusBadge } from '@/components/ui/StatusBadge';
+import {
+  telephonyApi,
+  leadsApi,
+  CallNoteRecord,
+  CallAnalysisRecord,
+  CapturedLead
+} from '@/lib/api';
 
 interface CallRecord {
   id: number;
@@ -32,16 +39,37 @@ interface CallRecord {
   leadName?: string | null;
 }
 
+// Helper to normalize phone numbers for omnichannel matching
+function normalizePhone(num?: string | null): string {
+  if (!num) return '';
+  const digits = num.replace(/\D/g, '');
+  if (digits.startsWith('92') && digits.length >= 11) return digits.slice(2);
+  if (digits.startsWith('0') && digits.length >= 10) return digits.slice(1);
+  return digits;
+}
+
+function isPhoneMatch(p1?: string | null, p2?: string | null): boolean {
+  const d1 = normalizePhone(p1);
+  const d2 = normalizePhone(p2);
+  if (!d1 || !d2) return false;
+  if (d1 === d2) return true;
+  if (d1.length >= 9 && d2.length >= 9 && d1.slice(-9) === d2.slice(-9)) return true;
+  return false;
+}
+
 function DetailedViewContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const initialCallId = searchParams.get('callId') || '';
 
   // Data states
   const [logs, setLogs] = useState<CallRecord[]>([]);
+  const [leads, setLeads] = useState<CapturedLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCall, setSelectedCall] = useState<CallRecord | null>(null);
+
+  // Preferred lead names override per call uniqueid/id
+  const [selectedLeadNameMap, setSelectedLeadNameMap] = useState<Record<string, string>>({});
 
   // Filter states
   const [startDate, setStartDate] = useState('');
@@ -57,27 +85,56 @@ function DetailedViewContent() {
   const [newNoteText, setNewNoteText] = useState('');
   const [submittingNote, setSubmittingNote] = useState(false);
 
-  // Fetch call logs
-  const fetchLogs = async () => {
+  // Audio Recording states
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [recordingExists, setRecordingExists] = useState<boolean | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string>('');
+  const [checkingRecording, setCheckingRecording] = useState(false);
+
+  // AI Call Analysis / Summary & Transcript states
+  const [analysis, setAnalysis] = useState<CallAnalysisRecord | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [activeAnalysisTab, setActiveAnalysisTab] = useState<'summary' | 'transcript'>('summary');
+
+  // Fetch initial call logs & captured leads
+  const fetchLogsAndLeads = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await telephonyApi.getCompanyCallLogs();
-      const fetchedLogs: CallRecord[] = res.data?.logs || [];
-      setLogs(fetchedLogs);
+      const [logsRes, leadsRes] = await Promise.allSettled([
+        telephonyApi.getCompanyCallLogs(),
+        leadsApi.getAll()
+      ]);
+
+      let fetchedLogs: CallRecord[] = [];
+      if (logsRes.status === 'fulfilled' && logsRes.value.data?.logs) {
+        fetchedLogs = logsRes.value.data.logs;
+        setLogs(fetchedLogs);
+      }
+
+      if (leadsRes.status === 'fulfilled' && leadsRes.value.leads) {
+        setLeads(leadsRes.value.leads);
+      }
 
       // Select initial call if specified or pick first call
-      if (initialCallId) {
+      if (initialCallId && fetchedLogs.length > 0) {
         const found = fetchedLogs.find(
           (c) => String(c.uniqueid) === initialCallId || String(c.id) === initialCallId
         );
         if (found) {
           setSelectedCall(found);
-        } else if (fetchedLogs.length > 0) {
+        } else {
           setSelectedCall(fetchedLogs[0]);
         }
       } else if (fetchedLogs.length > 0) {
-        setSelectedCall(fetchedLogs[0]);
+        setSelectedCall((prev) => prev || fetchedLogs[0]);
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to fetch call logs');
@@ -87,16 +144,58 @@ function DetailedViewContent() {
   };
 
   useEffect(() => {
-    fetchLogs();
+    fetchLogsAndLeads();
   }, []);
 
-  // Fetch notes whenever selectedCall changes
+  // Helper to get matched leads for a phone number
+  const getMatchedLeadsForPhone = (phoneNum?: string | null): CapturedLead[] => {
+    if (!phoneNum || !leads.length) return [];
+    return leads.filter((lead) => isPhoneMatch(lead.phone, phoneNum));
+  };
+
+  // Helper to resolve lead info for a call
+  const resolveLeadForCall = (call: CallRecord) => {
+    const targetPhone = call.destination || call.callerid || '';
+    const matched = getMatchedLeadsForPhone(targetPhone);
+    const callKey = call.uniqueid || String(call.id);
+    const selectedOverride = selectedLeadNameMap[callKey];
+
+    const sources = Array.from(new Set(matched.map((m) => m.source?.toLowerCase() || 'form').filter(Boolean)));
+    const names = Array.from(new Set(matched.map((m) => m.full_name).filter(Boolean)));
+
+    let displayName: string | null = selectedOverride || null;
+    if (!displayName) {
+      // Prioritize meta lead name, then whatsapp, then first matched
+      const metaLead = matched.find((m) => m.source?.toLowerCase() === 'meta');
+      const waLead = matched.find((m) => m.source?.toLowerCase() === 'whatsapp');
+      if (metaLead?.full_name) displayName = metaLead.full_name;
+      else if (waLead?.full_name) displayName = waLead.full_name;
+      else if (names.length > 0) displayName = names[0];
+      else displayName = call.leadName || call.userName || null;
+    }
+
+    return {
+      matchedLeads: matched,
+      sources,
+      names,
+      displayName
+    };
+  };
+
+  // Fetch notes, check recording & load AI analysis whenever selectedCall changes
   useEffect(() => {
     if (!selectedCall) {
       setNotes([]);
+      setRecordingExists(null);
+      setRecordingUrl('');
+      setAnalysis(null);
       return;
     }
+
     const callId = selectedCall.uniqueid || String(selectedCall.id);
+    const targetPhone = selectedCall.destination || selectedCall.callerid;
+
+    // 1. Load Notes
     const loadNotes = async () => {
       setNotesLoading(true);
       try {
@@ -109,7 +208,88 @@ function DetailedViewContent() {
       }
     };
     loadNotes();
+
+    // 2. Check Audio Recording
+    const checkAudio = async () => {
+      setCheckingRecording(true);
+      setIsPlaying(false);
+      setCurrentTime(0);
+      try {
+        const checkRes = await telephonyApi.checkRecording({
+          uniqueid: selectedCall.uniqueid,
+          phone: targetPhone
+        });
+        if (checkRes.data?.exists) {
+          setRecordingExists(true);
+          const stream = telephonyApi.getRecordingStreamUrl({
+            uniqueid: selectedCall.uniqueid,
+            phone: targetPhone
+          });
+          setRecordingUrl(stream);
+        } else {
+          // Construct fallback stream url
+          const stream = telephonyApi.getRecordingStreamUrl({
+            uniqueid: selectedCall.uniqueid,
+            phone: targetPhone
+          });
+          setRecordingUrl(stream);
+          setRecordingExists(true); // Attempt to allow playback stream
+        }
+      } catch {
+        // Fallback stream URL attempt
+        const stream = telephonyApi.getRecordingStreamUrl({
+          uniqueid: selectedCall.uniqueid,
+          phone: targetPhone
+        });
+        setRecordingUrl(stream);
+        setRecordingExists(true);
+      } finally {
+        setCheckingRecording(false);
+      }
+    };
+    checkAudio();
+
+    // 3. Load AI Analysis
+    const loadAnalysis = async () => {
+      setAnalysisLoading(true);
+      try {
+        const res = await telephonyApi.getCallAnalysis(callId);
+        if (res.data && (res.data.summary || res.data.transcript)) {
+          setAnalysis(res.data);
+        } else {
+          setAnalysis(null);
+        }
+      } catch {
+        setAnalysis(null);
+      } finally {
+        setAnalysisLoading(false);
+      }
+    };
+    loadAnalysis();
   }, [selectedCall]);
+
+  // Handle Trigger AI Analysis
+  const handleTriggerAnalysis = async () => {
+    if (!selectedCall) return;
+    const callId = selectedCall.uniqueid || String(selectedCall.id);
+    setIsAnalyzing(true);
+    try {
+      const res = await telephonyApi.processCall({
+        call_id: String(selectedCall.id),
+        uniqueid: selectedCall.uniqueid,
+        phone: selectedCall.destination || selectedCall.callerid,
+        audio_url: recordingUrl || undefined,
+        force: true
+      });
+      if (res.data) {
+        setAnalysis(res.data);
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Failed to analyze call with AI');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   // Handle adding note
   const handleAddNote = async (e: React.FormEvent) => {
@@ -128,6 +308,54 @@ function DetailedViewContent() {
       alert(err?.message || 'Failed to add note');
     } finally {
       setSubmittingNote(false);
+    }
+  };
+
+  // Audio Controls
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => setIsPlaying(true)).catch((e) => {
+        console.warn('Audio play error:', e);
+        setIsPlaying(false);
+      });
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setCurrentTime(val);
+    if (audioRef.current) {
+      audioRef.current.currentTime = val;
+    }
+  };
+
+  const toggleMute = () => {
+    if (!audioRef.current) return;
+    audioRef.current.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setVolume(val);
+    if (audioRef.current) {
+      audioRef.current.volume = val;
+      audioRef.current.muted = val === 0;
+      setIsMuted(val === 0);
+    }
+  };
+
+  const cyclePlaybackRate = () => {
+    const rates = [1, 1.25, 1.5, 2];
+    const nextIdx = (rates.indexOf(playbackRate) + 1) % rates.length;
+    const nextRate = rates[nextIdx];
+    setPlaybackRate(nextRate);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextRate;
     }
   };
 
@@ -200,9 +428,9 @@ function DetailedViewContent() {
   };
 
   const formatSecs = (secs?: number) => {
-    if (secs == null) return '0:00';
+    if (secs == null || isNaN(secs)) return '0:00';
     const m = Math.floor(secs / 60);
-    const s = secs % 60;
+    const s = Math.floor(secs % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
@@ -226,18 +454,58 @@ function DetailedViewContent() {
     return { bg: '#f1f5f9', color: '#475569', label: status || 'Completed' };
   };
 
+  const renderChannelBadge = (src: string) => {
+    const s = src.toLowerCase();
+    if (s.includes('meta') || s.includes('facebook') || s.includes('instagram')) {
+      return (
+        <span key={src} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+          <Share2 size={11} className="text-blue-600" /> Meta
+        </span>
+      );
+    }
+    if (s.includes('whatsapp')) {
+      return (
+        <span key={src} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+          <MessageCircle size={11} className="text-emerald-600" /> WhatsApp
+        </span>
+      );
+    }
+    if (s.includes('shopify')) {
+      return (
+        <span key={src} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs">
+          <ShoppingBag size={11} className="text-teal-600" /> Shopify
+        </span>
+      );
+    }
+    if (s.includes('daraz')) {
+      return (
+        <span key={src} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-orange-50 text-orange-700 border border-orange-200 shadow-2xs">
+          <ShoppingBag size={11} className="text-orange-600" /> Daraz
+        </span>
+      );
+    }
+    return (
+      <span key={src} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+        <Layers size={11} className="text-purple-600" /> {src.toUpperCase()}
+      </span>
+    );
+  };
+
+  const selectedCallLeadInfo = selectedCall ? resolveLeadForCall(selectedCall) : null;
+  const selectedCallKey = selectedCall ? (selectedCall.uniqueid || String(selectedCall.id)) : '';
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <CompanyHeader
         title="Call Logs"
-        subtitle="Detailed call inspection, records & observations"
+        subtitle="Detailed call inspection, omnichannel identity, recordings & AI intelligence"
         actions={
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span>Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             <button
-              onClick={fetchLogs}
+              onClick={fetchLogsAndLeads}
               className="p-1.5 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-md shadow-sm transition-colors"
-              title="Refresh logs"
+              title="Refresh logs & leads"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -295,7 +563,7 @@ function DetailedViewContent() {
                     type="text"
                     value={destinationFilter}
                     onChange={(e) => setDestinationFilter(e.target.value)}
-                    placeholder="Destination"
+                    placeholder="Destination / Phone"
                     className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                   />
                 </div>
@@ -311,7 +579,7 @@ function DetailedViewContent() {
                       onClick={() => setDispositionFilter(tab)}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                         isActive
-                          ? 'bg-blue-600 text-white shadow-sm'
+                          ? 'bg-purple-600 text-white shadow-sm'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
@@ -345,6 +613,11 @@ function DetailedViewContent() {
                     (selectedCall.uniqueid || String(selectedCall.id)) === callIdStr;
                   const badge = getBadgeStyle(log.status);
                   const targetNum = log.destination || log.callerid || 'Unknown';
+                  const leadInfo = resolveLeadForCall(log);
+
+                  const initialLetter = leadInfo.displayName
+                    ? leadInfo.displayName.charAt(0).toUpperCase()
+                    : targetNum.charAt(0).toUpperCase() || 'C';
 
                   return (
                     <div
@@ -352,30 +625,53 @@ function DetailedViewContent() {
                       onClick={() => setSelectedCall(log)}
                       className={`p-4 cursor-pointer transition-all flex items-start gap-3.5 ${
                         isSelected
-                          ? 'bg-purple-50/70 border-l-4 border-purple-600 shadow-inner'
+                          ? 'bg-purple-50/80 border-l-4 border-purple-600 shadow-inner'
                           : 'hover:bg-slate-50'
                       }`}
                     >
                       {/* Avatar Circle */}
                       <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold text-sm flex items-center justify-center flex-shrink-0 shadow-sm">
-                        O
+                        {initialLetter}
                       </div>
 
                       {/* Info Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <h4 className="text-sm font-bold text-slate-900 truncate">
-                            {targetNum}
-                          </h4>
+                          <div className="truncate">
+                            {leadInfo.displayName ? (
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="text-sm font-bold text-slate-900 truncate">
+                                  {leadInfo.displayName}
+                                </span>
+                              </div>
+                            ) : (
+                              <h4 className="text-sm font-bold text-slate-900 truncate font-mono">
+                                {targetNum}
+                              </h4>
+                            )}
+                          </div>
                           <span
-                            className="px-2 py-0.5 rounded-md text-[11px] font-bold"
+                            className="px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0"
                             style={{ backgroundColor: badge.bg, color: badge.color }}
                           >
                             {badge.label}
                           </span>
                         </div>
 
+                        {/* Omnichannel sources tags */}
+                        {leadInfo.sources.length > 0 && (
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            {leadInfo.sources.map((s) => renderChannelBadge(s))}
+                          </div>
+                        )}
+
                         <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                          {leadInfo.displayName && (
+                            <>
+                              <span className="font-mono text-slate-600 font-semibold">{targetNum}</span>
+                              <span>•</span>
+                            </>
+                          )}
                           <span className="inline-flex items-center gap-0.5 text-purple-700 font-medium">
                             <ArrowUpRight size={12} /> Outgoing
                           </span>
@@ -396,31 +692,50 @@ function DetailedViewContent() {
             </div>
           </div>
 
-          {/* RIGHT PANEL: Call Details & Notes (7 cols) */}
+          {/* RIGHT PANEL: Call Details, Audio Player, AI Intelligence & Notes (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
             {selectedCall ? (
               <>
-                {/* Header Card */}
+                {/* 1. Header & Identity Card */}
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                     <div className="flex items-center gap-3.5">
-                      <div className="w-11 h-11 rounded-full bg-purple-600 text-white font-bold text-base flex items-center justify-center shadow">
-                        O
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-purple-700 to-indigo-600 text-white font-bold text-lg flex items-center justify-center shadow-md">
+                        {selectedCallLeadInfo?.displayName
+                          ? selectedCallLeadInfo.displayName.charAt(0).toUpperCase()
+                          : (selectedCall.destination || selectedCall.callerid || 'C').charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <h2 className="text-lg font-bold text-slate-900 leading-tight">
-                          {selectedCall.destination || selectedCall.callerid}
-                        </h2>
-                        <p className="text-xs text-slate-500 font-medium">
-                          {selectedCall.leadName ? `Lead: ${selectedCall.leadName}` : selectedCall.destination || selectedCall.callerid}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-lg font-bold text-slate-900 leading-tight">
+                            {selectedCallLeadInfo?.displayName || selectedCall.destination || selectedCall.callerid}
+                          </h2>
+                          {selectedCallLeadInfo?.sources.map((s) => renderChannelBadge(s))}
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-2">
+                          <span className="font-mono font-semibold text-slate-700">
+                            {selectedCall.destination || selectedCall.callerid}
+                          </span>
+                          {selectedCallLeadInfo?.matchedLeads.length ? (
+                            <span className="text-emerald-600 font-medium">
+                              (Matched in {selectedCallLeadInfo.matchedLeads.length} Lead Record{selectedCallLeadInfo.matchedLeads.length > 1 ? 's' : ''})
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">(Direct Telephony Call)</span>
+                          )}
                         </p>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <span className="text-xs text-slate-400 font-mono">
+                      <span className="text-xs text-slate-400 font-mono block">
                         Call ID: #{selectedCall.id}
                       </span>
+                      {selectedCall.uniqueid && (
+                        <span className="text-[10px] text-slate-400 font-mono block truncate max-w-[140px]" title={selectedCall.uniqueid}>
+                          UID: {selectedCall.uniqueid}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -528,47 +843,420 @@ function DetailedViewContent() {
                   </div>
                 </div>
 
-                {/* Call Details Card */}
+                {/* 2. Contact & Omnichannel Identity Resolution Card */}
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 text-purple-700 font-bold text-xs uppercase tracking-wider border-b border-slate-100 pb-3">
-                    <User size={16} />
-                    <span>CALL DETAILS</span>
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2 text-purple-700 font-bold text-xs uppercase tracking-wider">
+                      <User size={16} />
+                      <span>Contact & Omnichannel Identity</span>
+                    </div>
+
+                    {selectedCallLeadInfo && selectedCallLeadInfo.names.length > 1 && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-[11px] text-slate-500 font-semibold">Display As:</label>
+                        <select
+                          value={selectedCallLeadInfo.displayName || ''}
+                          onChange={(e) => {
+                            setSelectedLeadNameMap((prev) => ({
+                              ...prev,
+                              [selectedCallKey]: e.target.value
+                            }));
+                          }}
+                          className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                          {selectedCallLeadInfo.names.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Contact Info Subsection */}
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      ◦ CONTACT INFO
-                    </span>
+                  {/* Contact Info Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div className="p-3 bg-slate-50/60 rounded-xl border border-slate-100">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">
+                        RESOLVED NAME
+                      </span>
+                      <span className="text-slate-900 font-bold text-sm block">
+                        {selectedCallLeadInfo?.displayName || 'Unregistered Contact'}
+                      </span>
+                    </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-xs pt-1">
-                      <div>
-                        <span className="text-slate-400 text-[11px] uppercase font-bold block mb-0.5">
-                          NAME
-                        </span>
-                        <span className="text-slate-800 font-medium italic">
-                          {selectedCall.leadName || selectedCall.userName || 'Unknown'}
-                        </span>
-                      </div>
+                    <div className="p-3 bg-slate-50/60 rounded-xl border border-slate-100">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">
+                        PHONE NUMBER
+                      </span>
+                      <span className="text-slate-900 font-bold font-mono text-sm block">
+                        {selectedCall.destination || selectedCall.callerid}
+                      </span>
+                    </div>
 
-                      <div>
-                        <span className="text-slate-400 text-[11px] uppercase font-bold block mb-0.5">
-                          PHONE
-                        </span>
-                        <span className="text-slate-900 font-bold font-mono">
-                          {selectedCall.destination || selectedCall.callerid}
-                        </span>
+                    <div className="p-3 bg-slate-50/60 rounded-xl border border-slate-100">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">
+                        CHANNEL SOURCES
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                        {selectedCallLeadInfo && selectedCallLeadInfo.sources.length > 0 ? (
+                          selectedCallLeadInfo.sources.map((s) => renderChannelBadge(s))
+                        ) : (
+                          <span className="text-slate-500 font-medium text-xs">Direct PBX</span>
+                        )}
                       </div>
                     </div>
                   </div>
+
+                  {/* Lead Matches Table / Details if found */}
+                  {selectedCallLeadInfo && selectedCallLeadInfo.matchedLeads.length > 0 && (
+                    <div className="mt-2 pt-3 border-t border-slate-100">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
+                        Linked Omnichannel Leads ({selectedCallLeadInfo.matchedLeads.length})
+                      </span>
+                      <div className="space-y-2">
+                        {selectedCallLeadInfo.matchedLeads.map((mLead) => (
+                          <div
+                            key={mLead.id}
+                            className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100 text-xs"
+                          >
+                            <div className="flex items-center gap-2">
+                              {renderChannelBadge(mLead.source || 'form')}
+                              <span className="font-bold text-slate-800">{mLead.full_name}</span>
+                              {mLead.email && (
+                                <span className="text-slate-500 text-[11px]">({mLead.email})</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-slate-400 text-[11px]">
+                              {mLead.form_name && <span>Form: {mLead.form_name}</span>}
+                              <span>•</span>
+                              <span>{formatShortDate(mLead.created_at)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Call Notes Card */}
+                {/* 3. Audio Recording Player Card */}
+                <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                      <Volume2 size={16} className="text-purple-600" />
+                      <span>Call Audio Recording</span>
+                    </div>
+
+                    {recordingUrl && (
+                      <a
+                        href={recordingUrl}
+                        download={`call_recording_${selectedCall.id}.wav`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        <Download size={13} /> Download WAV
+                      </a>
+                    )}
+                  </div>
+
+                  {checkingRecording ? (
+                    <div className="p-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                      <RefreshCw size={14} className="animate-spin text-purple-600" />
+                      <span>Checking call recording availability...</span>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-900 text-white rounded-xl p-4 shadow-inner space-y-3">
+                      {/* Hidden audio element */}
+                      {recordingUrl && (
+                        <audio
+                          ref={audioRef}
+                          src={recordingUrl}
+                          onTimeUpdate={() => {
+                            if (audioRef.current) {
+                              setCurrentTime(audioRef.current.currentTime);
+                            }
+                          }}
+                          onLoadedMetadata={() => {
+                            if (audioRef.current) {
+                              setAudioDuration(audioRef.current.duration || selectedCall.duration || 0);
+                            }
+                          }}
+                          onEnded={() => setIsPlaying(false)}
+                          onError={(e) => {
+                            console.warn('Audio streaming notice', e);
+                          }}
+                        />
+                      )}
+
+                      {/* Controls Bar */}
+                      <div className="flex items-center gap-4">
+                        {/* Play/Pause Button */}
+                        <button
+                          onClick={togglePlay}
+                          className="w-11 h-11 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center shadow-md transition-transform active:scale-95 flex-shrink-0"
+                          title={isPlaying ? 'Pause' : 'Play Recording'}
+                        >
+                          {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
+                        </button>
+
+                        {/* Seek Slider & Timers */}
+                        <div className="flex-1 space-y-1">
+                          <input
+                            type="range"
+                            min={0}
+                            max={audioDuration || selectedCall.duration || 100}
+                            step={0.1}
+                            value={currentTime}
+                            onChange={handleSeek}
+                            className="w-full accent-purple-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+                          />
+                          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                            <span>{formatSecs(currentTime)}</span>
+                            <span>{formatSecs(audioDuration || selectedCall.duration || 0)}</span>
+                          </div>
+                        </div>
+
+                        {/* Speed Selector */}
+                        <button
+                          onClick={cyclePlaybackRate}
+                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 transition-colors"
+                          title="Change Playback Speed"
+                        >
+                          {playbackRate}x
+                        </button>
+
+                        {/* Volume Control */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={toggleMute}
+                            className="text-slate-400 hover:text-white transition-colors"
+                          >
+                            {isMuted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                          </button>
+                          <input
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={isMuted ? 0 : volume}
+                            onChange={handleVolumeChange}
+                            className="w-16 accent-purple-500 cursor-pointer h-1 bg-slate-700 rounded-lg hidden sm:block"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <CheckCircle2 size={12} className="text-emerald-400" />
+                          Audio Stream Ready
+                        </span>
+                        <span className="font-mono text-slate-500">
+                          {selectedCall.uniqueid || `call_${selectedCall.id}`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. AI Call Summarization & Transcription Card */}
+                <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                      <Sparkles size={16} className="text-indigo-600" />
+                      <span>AI Call Intelligence & Transcription</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleTriggerAnalysis}
+                        disabled={isAnalyzing}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 px-3.5 py-1.5 rounded-lg shadow-sm transition-all"
+                      >
+                        <Sparkles size={13} className={isAnalyzing ? 'animate-spin' : ''} />
+                        {isAnalyzing ? 'Analyzing with AI...' : analysis ? 'Re-Analyze Call' : 'Generate AI Summary'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tabs: Summary vs Transcript */}
+                  {analysis && (
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                      <button
+                        onClick={() => setActiveAnalysisTab('summary')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          activeAnalysisTab === 'summary'
+                            ? 'bg-purple-100 text-purple-800 shadow-2xs'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Executive Summary & Insights
+                      </button>
+                      <button
+                        onClick={() => setActiveAnalysisTab('transcript')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          activeAnalysisTab === 'transcript'
+                            ? 'bg-purple-100 text-purple-800 shadow-2xs'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Conversation Transcript
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Analysis Content */}
+                  {analysisLoading ? (
+                    <div className="p-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                      <RefreshCw size={14} className="animate-spin text-indigo-600" />
+                      <span>Checking AI analysis records...</span>
+                    </div>
+                  ) : analysis ? (
+                    activeAnalysisTab === 'summary' ? (
+                      <div className="space-y-4">
+                        {/* Summary Badges & Intent */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">
+                              CALL OUTCOME
+                            </span>
+                            <span className="font-bold text-xs capitalize text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md inline-block">
+                              {analysis.summary?.outcome?.replace(/_/g, ' ') || 'Completed'}
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">
+                              SENTIMENT
+                            </span>
+                            <span
+                              className={`font-bold text-xs capitalize px-2 py-0.5 rounded-md inline-block ${
+                                analysis.summary?.sentiment === 'positive'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : analysis.summary?.sentiment === 'negative'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-slate-200 text-slate-800'
+                              }`}
+                            >
+                              {analysis.summary?.sentiment || 'Neutral'}
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">
+                              CALLER INTENT
+                            </span>
+                            <span className="font-semibold text-xs text-slate-800 line-clamp-2">
+                              {analysis.summary?.caller_intent || 'General Inquiry'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Key Discussion Points */}
+                        {analysis.summary?.key_points && analysis.summary.key_points.length > 0 && (
+                          <div className="p-4 bg-indigo-50/40 rounded-xl border border-indigo-100/70 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                              <ListChecks size={14} className="text-indigo-600" />
+                              <span>Key Discussion Points</span>
+                            </div>
+                            <ul className="space-y-1.5 text-xs text-slate-700 pl-2">
+                              {analysis.summary.key_points.map((pt, idx) => (
+                                <li key={idx} className="flex items-start gap-2">
+                                  <span className="text-indigo-600 font-bold">•</span>
+                                  <span>{pt}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Action Items */}
+                        {analysis.summary?.action_items && analysis.summary.action_items.length > 0 && (
+                          <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100/70 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950 uppercase tracking-wider">
+                              <CheckSquare size={14} className="text-emerald-600" />
+                              <span>Follow-up Action Items</span>
+                            </div>
+                            <div className="space-y-1.5 text-xs text-slate-700">
+                              {analysis.summary.action_items.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <input type="checkbox" readOnly defaultChecked={false} className="rounded accent-emerald-600" />
+                                  <span>{item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Language & Script notes */}
+                        {analysis.summary?.language_notes && (
+                          <div className="text-[11px] text-slate-500 italic">
+                            Language note: {analysis.summary.language_notes}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Transcript Tab */
+                      <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                        {analysis.transcript?.segments && analysis.transcript.segments.length > 0 ? (
+                          analysis.transcript.segments.map((seg, idx) => {
+                            const isAgent = seg.speaker?.toLowerCase().includes('agent') || seg.speaker?.toLowerCase().includes('bot');
+                            return (
+                              <div
+                                key={idx}
+                                className={`p-3 rounded-xl border text-xs space-y-1 ${
+                                  isAgent
+                                    ? 'bg-purple-50/60 border-purple-100'
+                                    : 'bg-slate-50 border-slate-100'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className={`font-bold flex items-center gap-1 ${isAgent ? 'text-purple-700' : 'text-slate-800'}`}>
+                                    {isAgent ? <Bot size={13} /> : <User size={13} />}
+                                    {seg.speaker || (isAgent ? 'Agent / AI' : 'Customer')}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    {formatSecs(seg.start_time)} - {formatSecs(seg.end_time)}
+                                  </span>
+                                </div>
+                                <p className="text-slate-700 leading-relaxed font-normal">
+                                  {seg.text}
+                                </p>
+                              </div>
+                            );
+                          })
+                        ) : analysis.transcript?.full_text ? (
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                            {analysis.transcript.full_text}
+                          </div>
+                        ) : (
+                          <div className="p-6 text-center text-slate-400 text-xs">
+                            No transcript turns recorded for this call.
+                          </div>
+                        )}
+                      </div>
+                    )
+                  ) : (
+                    <div className="p-6 bg-indigo-50/30 rounded-xl border border-indigo-100/60 text-center text-slate-600 text-xs flex flex-col items-center gap-2">
+                      <Bot size={24} className="text-indigo-500" />
+                      <div className="max-w-md">
+                        <span className="font-bold text-slate-800 block mb-1">
+                          No AI Summary Generated Yet
+                        </span>
+                        <span>
+                          Click &quot;Generate AI Summary&quot; above to transcribe this call recording and extract conversation highlights, sentiment, caller intent, and follow-up action items.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. Call Notes Card */}
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
                       <MessageSquare size={16} className="text-purple-600" />
-                      <span>Call Notes</span>
+                      <span>Call Notes & Manual Observations</span>
                     </div>
 
                     <button
@@ -588,7 +1276,7 @@ function DetailedViewContent() {
                   ) : notes.length === 0 ? (
                     <div className="p-6 bg-slate-50/60 rounded-xl border border-slate-100 text-center text-slate-400 text-xs flex flex-col items-center gap-1.5">
                       <AlertCircle size={18} className="text-slate-400" />
-                      <span>No notes yet. Click the edit icon to add observations.</span>
+                      <span>No notes yet. Click &quot;Add Note&quot; to write observations.</span>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -612,7 +1300,7 @@ function DetailedViewContent() {
               </>
             ) : (
               <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400 text-sm">
-                Select a call log from the left list to inspect detailed specs and observations.
+                Select a call log from the left list to inspect detailed specs, recordings, and AI intelligence.
               </div>
             )}
           </div>
