@@ -315,6 +315,52 @@ export const integrationsApi = {
     api.get<{ success: boolean; leads: MetaFormLead[] }>(`/integrations/meta/forms/${formId}/leads`),
 };
 
+export interface AdminOmnichannelStats {
+  totalCompanies: number;
+  totalActiveIntegrations: number;
+  totalErrors: number;
+  totalLeadsCaptured: number;
+  byPlatform: Record<string, { active: number; error: number; total: number }>;
+}
+
+export interface AdminCompanyIntegrationSummary {
+  _id: string;
+  name: string;
+  businessType?: string;
+  status: string;
+  billingModel?: string;
+  createdAt?: string;
+  integrations: Array<{
+    _id: string;
+    platformType: PlatformType;
+    status: 'active' | 'disconnected' | 'error';
+    leadsReceivedCount: number;
+    lastSyncAt?: string;
+    connectedAt?: string;
+    credentials: PlatformCredentials;
+  }>;
+}
+
+export const adminIntegrationsApi = {
+  getOverview: () =>
+    api.get<{
+      success: boolean;
+      data: {
+        stats: AdminOmnichannelStats;
+        companies: AdminCompanyIntegrationSummary[];
+      };
+    }>('/integrations/admin/overview'),
+
+  getCompanyIntegrations: (companyId: string) =>
+    api.get<{
+      success: boolean;
+      data: {
+        company: Company;
+        integrations: PlatformIntegration[];
+      };
+    }>(`/integrations/admin/company/${companyId}`),
+};
+
 // ── Leads endpoints ───────────────────────────────────────────────────────────
 
 export interface CapturedLead {
