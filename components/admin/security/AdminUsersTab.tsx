@@ -12,6 +12,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { adminUsersApi, rolesApi } from '@/lib/api';
 import type { AdminUser, Role, CreateAdminUserPayload } from '@/lib/types';
+import { confirmModal } from '@/components/ui/NotificationProvider';
 
 const EMPTY_FORM: CreateAdminUserPayload = { email: '', fullName: '', password: '', roleId: '' };
 
@@ -105,7 +106,13 @@ export function AdminUsersTab() {
   }
 
   async function handleDeactivate(user: AdminUser) {
-    if (!confirm(`Deactivate "${user.fullName}"?`)) return;
+    const confirmed = await confirmModal({
+      title: 'Deactivate User',
+      message: `Are you sure you want to deactivate "${user.fullName}"? They will no longer be able to log in.`,
+      confirmText: 'Deactivate',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await adminUsersApi.deactivate(user._id);
       showToast('User deactivated', 'success');

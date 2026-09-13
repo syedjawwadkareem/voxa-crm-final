@@ -12,6 +12,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { billingApi } from '@/lib/api';
 import type { Plan } from '@/lib/types';
+import { confirmModal } from '@/components/ui/NotificationProvider';
 
 const EMPTY_FORM: Partial<Plan> = {
   name: '',
@@ -111,7 +112,13 @@ export default function AdminPlansPage() {
 
   // ── Delete ──────────────────────────────────────────────────────────────────
   async function handleDelete(plan: Plan) {
-    if (!confirm(`Are you sure you want to delete ${plan.name}?`)) return;
+    const confirmed = await confirmModal({
+      title: 'Delete Billing Plan',
+      message: `Are you sure you want to delete the plan "${plan.name}"? This action cannot be undone.`,
+      confirmText: 'Delete Plan',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await billingApi.deletePlan(plan._id);
       showToast('Plan deleted', 'success');

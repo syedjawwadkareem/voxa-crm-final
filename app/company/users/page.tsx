@@ -12,6 +12,7 @@ import { PermissionGuard } from '@/components/ui/PermissionGuard';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { companyUsersApi, rolesApi } from '@/lib/api';
 import type { CompanyUser, Role, CreateCompanyUserPayload } from '@/lib/types';
+import { confirmModal } from '@/components/ui/NotificationProvider';
 
 const EMPTY_FORM: CreateCompanyUserPayload = { email: '', fullName: '', password: '', username: '', phoneNumber: '', roleId: '' };
 
@@ -109,7 +110,13 @@ export default function CompanyUsersPage() {
   }
 
   async function handleDeactivate(user: CompanyUser) {
-    if (!confirm(`Deactivate "${user.fullName}"?`)) return;
+    const confirmed = await confirmModal({
+      title: 'Deactivate User',
+      message: `Are you sure you want to deactivate "${user.fullName}"? They will no longer be able to log in.`,
+      confirmText: 'Deactivate',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await companyUsersApi.deactivate(user._id);
       showToast('User deactivated', 'success');

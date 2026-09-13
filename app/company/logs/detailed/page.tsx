@@ -20,6 +20,7 @@ import {
   CallAnalysisRecord,
   CapturedLead
 } from '@/lib/api';
+import { toast } from '@/components/ui/NotificationProvider';
 
 interface CallRecord {
   id: number;
@@ -283,9 +284,10 @@ function DetailedViewContent() {
       });
       if (res.data) {
         setAnalysis(res.data);
+        toast.success('AI analysis completed successfully');
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to analyze call with AI');
+      toast.error(err?.message || 'Failed to analyze call with AI');
     } finally {
       setIsAnalyzing(false);
     }
@@ -303,9 +305,10 @@ function DetailedViewContent() {
         setNotes((prev) => [res.data, ...prev]);
         setNewNoteText('');
         setShowAddNoteModal(false);
+        toast.success('Note added successfully');
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to add note');
+      toast.error(err?.message || 'Failed to add note');
     } finally {
       setSubmittingNote(false);
     }

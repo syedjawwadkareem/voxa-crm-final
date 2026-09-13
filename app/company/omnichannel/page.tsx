@@ -22,6 +22,7 @@ import {
   type PlatformType
 } from '@/lib/api';
 import { getUser } from '@/lib/auth';
+import { toast, confirmModal } from '@/components/ui/NotificationProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -629,11 +630,20 @@ function MetaConnectedView({
   const [disconnecting, setDisconnecting] = useState(false);
 
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Meta integration?')) return;
+    const confirmed = await confirmModal({
+      title: 'Disconnect Meta',
+      message: 'Are you sure you want to disconnect Meta integration? Webhooks and automated leads from Facebook/Instagram forms will stop syncing.',
+      confirmText: 'Disconnect',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setDisconnecting(true);
     try {
       await integrationsApi.deleteConfig('meta');
+      toast.success('Meta integration disconnected');
       onDisconnect();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to disconnect Meta');
     } finally {
       setDisconnecting(false);
     }
@@ -870,11 +880,20 @@ function ShopifyConnectedView({
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Shopify integration?')) return;
+    const confirmed = await confirmModal({
+      title: 'Disconnect Shopify',
+      message: 'Are you sure you want to disconnect Shopify integration? Real-time order sync will be paused.',
+      confirmText: 'Disconnect',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setDisconnecting(true);
     try {
       await integrationsApi.deleteConfig('shopify');
+      toast.success('Shopify integration disconnected');
       onDisconnect();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to disconnect Shopify');
     } finally {
       setDisconnecting(false);
     }
@@ -1132,11 +1151,20 @@ function DarazConnectedView({
   const [disconnecting, setDisconnecting] = useState(false);
 
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Daraz integration?')) return;
+    const confirmed = await confirmModal({
+      title: 'Disconnect Daraz',
+      message: 'Are you sure you want to disconnect Daraz integration? Order status syncing will be paused.',
+      confirmText: 'Disconnect',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setDisconnecting(true);
     try {
       await integrationsApi.deleteConfig('daraz');
+      toast.success('Daraz integration disconnected');
       onDisconnect();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to disconnect Daraz');
     } finally {
       setDisconnecting(false);
     }

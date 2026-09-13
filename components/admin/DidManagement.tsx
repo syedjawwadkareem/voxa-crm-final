@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { didsApi, companiesApi } from '@/lib/api';
 import type { Did, DidHistoryRow } from '@/lib/api';
+import { toast, confirmModal } from '@/components/ui/NotificationProvider';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -344,26 +345,41 @@ export function DidManagement() {
   useEffect(() => { load(); }, [load]);
 
   async function handleRelease(did: Did) {
-    if (!confirm(`Release ${did.did_number} from ${(did.company_id as any)?.name ?? 'company'} back to pool?`)) return;
+    const companyName = (did.company_id as any)?.name ?? 'company';
+    const confirmed = await confirmModal({
+      title: 'Release DID Number',
+      message: `Release ${did.did_number} from ${companyName} back to the pool?`,
+      confirmText: 'Release DID',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
     setActionLoading(s => ({ ...s, [did._id]: true }));
     try {
       await didsApi.release(did._id);
+      toast.success(`DID ${did.did_number} released to pool`);
       await load();
     } catch (e: any) {
-      alert('Release failed: ' + e.message);
+      toast.error('Release failed: ' + e.message);
     } finally {
       setActionLoading(s => ({ ...s, [did._id]: false }));
     }
   }
 
   async function handleDelete(did: Did) {
-    if (!confirm(`Permanently delete ${did.did_number} from the pool?`)) return;
+    const confirmed = await confirmModal({
+      title: 'Delete DID Number',
+      message: `Permanently delete ${did.did_number} from the pool? This cannot be undone.`,
+      confirmText: 'Delete DID',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setActionLoading(s => ({ ...s, [did._id]: true }));
     try {
       await didsApi.delete(did._id);
+      toast.success(`DID ${did.did_number} permanently deleted`);
       await load();
     } catch (e: any) {
-      alert('Delete failed: ' + e.message);
+      toast.error('Delete failed: ' + e.message);
     } finally {
       setActionLoading(s => ({ ...s, [did._id]: false }));
     }

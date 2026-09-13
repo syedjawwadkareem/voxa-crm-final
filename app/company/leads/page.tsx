@@ -12,6 +12,7 @@ import {
   leadsApi, integrationsApi, messengerApi, type CapturedLead, type LeadsStats, type MetaForm,
   type MessengerConversation, type MessengerMessage
 } from '@/lib/api';
+import { toast } from '@/components/ui/NotificationProvider';
 
 // ─── CallLog Modal ────────────────────────────────────────────────────────────
 function LeadCallLogModal({ lead, onClose }: { lead: CapturedLead, onClose: () => void }) {
@@ -500,8 +501,9 @@ function MessengerSection() {
     try {
       await messengerApi.sendMessage(selectedPsid, textToSend);
       fetchThread(selectedPsid);
+      toast.success('Message sent');
     } catch (err: any) {
-      alert(`Failed to send message: ${err.message || 'Meta API error'}`);
+      toast.error(`Failed to send message: ${err.message || 'Meta API error'}`);
       fetchThread(selectedPsid);
     } finally {
       setSending(false);

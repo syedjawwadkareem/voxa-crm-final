@@ -12,6 +12,7 @@ import { PermissionCheckboxGrid } from '@/components/ui/PermissionCheckboxGrid';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { rolesApi } from '@/lib/api';
 import type { Role, CreateRolePayload } from '@/lib/types';
+import { confirmModal } from '@/components/ui/NotificationProvider';
 
 const EMPTY_FORM: CreateRolePayload = { name: '', permissions: [], description: '' };
 
@@ -95,7 +96,13 @@ export function AdminRolesTab() {
   }
 
   async function handleDelete(role: Role) {
-    if (!confirm(`Delete role "${role.name}"? This cannot be undone.`)) return;
+    const confirmed = await confirmModal({
+      title: 'Delete Role',
+      message: `Are you sure you want to delete role "${role.name}"? This cannot be undone.`,
+      confirmText: 'Delete Role',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await rolesApi.adminDelete(role._id);
       showToast('Role deleted', 'success');

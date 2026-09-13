@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { aiAgentsApi } from '@/lib/api';
 import type { AgentConfig, AiCall, CreateAgentConfigPayload, AiCallStatus } from '@/lib/api';
+import { toast, confirmModal } from '@/components/ui/NotificationProvider';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -389,11 +390,20 @@ export function CompanyAiAgents() {
   useEffect(() => { if (activeTab === 'calls') loadCalls(); }, [activeTab, loadCalls]);
 
   async function handleDelete(cfg: AgentConfig) {
-    if (!confirm(`Delete "${cfg.name}"?`)) return;
+    const confirmed = await confirmModal({
+      title: 'Delete AI Agent',
+      message: `Are you sure you want to delete "${cfg.name}"? This action cannot be undone.`,
+      confirmText: 'Delete Agent',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await aiAgentsApi.companyDeleteConfig(cfg._id);
+      toast.success(`Agent "${cfg.name}" deleted`);
       await loadConfigs();
-    } catch (e: any) { alert('Error: ' + e.message); }
+    } catch (e: any) {
+      toast.error('Error: ' + e.message);
+    }
   }
 
   return (
