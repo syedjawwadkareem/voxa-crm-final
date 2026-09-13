@@ -63,7 +63,7 @@ interface DialerState {
   callRoute: string;
   sipState: PhoneRegState;
   sipWho: string;
-  banner: { html: string; type: 'err' | 'warn'; action?: { label: string; onClick: () => void } } | null;
+  banner: { html: string; type: 'err' | 'warn' } | null;
 }
 
 // ── API base ──────────────────────────────────────────────────────────────────
@@ -148,8 +148,8 @@ export function AdminDialer() {
     setState(s => ({ ...s, callState, errorMsg }));
   }, []);
 
-  const showBanner = useCallback((html: string, type: 'err' | 'warn' = 'warn', action?: { label: string; onClick: () => void }) => {
-    setState(s => ({ ...s, banner: { html, type, action } }));
+  const showBanner = useCallback((html: string, type: 'err' | 'warn' = 'warn') => {
+    setState(s => ({ ...s, banner: { html, type } }));
   }, []);
 
   const hideBanner = useCallback(() => {
@@ -538,23 +538,15 @@ export function AdminDialer() {
     const type = classifyDestination(num);
     if (type === 'none') return;
 
-    // Block PSTN calls if softphone not registered (no audio with agent-bridge flow)
+    // Block PSTN calls if softphone not registered (no audio)
     if (type === 'pstn' && phoneRef.current.creds?.enabled && !phoneRef.current.registered) {
-      const wsUrl = phoneRef.current.creds?.wsUrl || '';
-      const trustUrl = wsUrl.replace(/^wss:\/\//i, 'https://').replace(/\/ws$/, '');
       showBanner(
-        '<b>Softphone not registered.</b> The browser softphone must be connected before placing a call. ' +
-        'If you see an SSL error, trust the certificate first then retry.',
-        'err',
-        trustUrl
-          ? {
-              label: `🔓 Trust Certificate (${trustUrl})`,
-              onClick: () => window.open(trustUrl, '_blank', 'noopener,noreferrer'),
-            }
-          : undefined
+        '<b>Softphone not registered.</b> Wait for "Registered" status before placing a PSTN call ' +
+        '— otherwise the call will connect with no audio.',
+        'err'
       );
       setStatus('error', 'Softphone not registered');
-      setTimeout(() => resetState(), 6000);
+      setTimeout(() => resetState(), 3000);
       return;
     }
 
@@ -804,17 +796,8 @@ export function AdminDialer() {
                 ? 'bg-red-50 border-red-200 text-red-700'
                 : 'bg-amber-50 border-amber-200 text-amber-700'
               }`}
-          >
-            <span dangerouslySetInnerHTML={{ __html: banner.html }} />
-            {banner.action && (
-              <button
-                onClick={banner.action.onClick}
-                className="mt-1.5 block underline underline-offset-2 font-semibold hover:opacity-70 transition-opacity"
-              >
-                {banner.action.label}
-              </button>
-            )}
-          </div>
+            dangerouslySetInnerHTML={{ __html: banner.html }}
+          />
         )}
 
         {/* ── DID Caller ID Selector ────────────────────────────────────── */}
