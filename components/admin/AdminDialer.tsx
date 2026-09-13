@@ -47,23 +47,23 @@ interface SipCreds {
 }
 
 interface CallInfo {
-  callId:        string | null;  // PSTN two-leg bridge id (== bridgeId)
-  channelId:     string | null;  // agent channel id (usable for mute/hold/hangup)
-  type:          'pstn' | 'internal' | null;
-  destination:   string | null;
+  callId: string | null;  // PSTN two-leg bridge id (== bridgeId)
+  channelId: string | null;  // agent channel id (usable for mute/hold/hangup)
+  type: 'pstn' | 'internal' | null;
+  destination: string | null;
 }
 
 interface DialerState {
-  callState:      CallState;
-  number:         string;
-  errorMsg:       string;
-  isMuted:        boolean;
-  isOnHold:       boolean;
+  callState: CallState;
+  number: string;
+  errorMsg: string;
+  isMuted: boolean;
+  isOnHold: boolean;
   elapsedSeconds: number;
-  callRoute:      string;
-  sipState:       PhoneRegState;
-  sipWho:         string;
-  banner:         { html: string; type: 'err' | 'warn' } | null;
+  callRoute: string;
+  sipState: PhoneRegState;
+  sipWho: string;
+  banner: { html: string; type: 'err' | 'warn'; action?: { label: string; onClick: () => void } } | null;
 }
 
 // ── API base ──────────────────────────────────────────────────────────────────
@@ -88,29 +88,29 @@ function classifyDestination(val: string): 'none' | 'internal' | 'pstn' {
 }
 
 const STATE_LABEL: Record<CallState, { text: string; color: string }> = {
-  idle:           { text: 'Ready',            color: '#94a3b8' },
-  dialing:        { text: 'Dialing…',         color: '#f59e0b' },
-  ringing:        { text: 'Ringing…',         color: '#3b82f6' },
-  'agent-answered':{ text: 'Connecting…',     color: '#8b5cf6' },
-  connected:      { text: 'Connected',        color: '#22c55e' },
-  ended:          { text: 'Call Ended',       color: '#ef4444' },
-  error:          { text: 'Error',            color: '#ef4444' },
+  idle: { text: 'Ready', color: '#94a3b8' },
+  dialing: { text: 'Dialing…', color: '#f59e0b' },
+  ringing: { text: 'Ringing…', color: '#3b82f6' },
+  'agent-answered': { text: 'Connecting…', color: '#8b5cf6' },
+  connected: { text: 'Connected', color: '#22c55e' },
+  ended: { text: 'Call Ended', color: '#ef4444' },
+  error: { text: 'Error', color: '#ef4444' },
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AdminDialer() {
   const [state, setState] = useState<DialerState>({
-    callState:      'idle',
-    number:         '',
-    errorMsg:       '',
-    isMuted:        false,
-    isOnHold:       false,
+    callState: 'idle',
+    number: '',
+    errorMsg: '',
+    isMuted: false,
+    isOnHold: false,
     elapsedSeconds: 0,
-    callRoute:      '',
-    sipState:       'connecting',
-    sipWho:         '',
-    banner:         null,
+    callRoute: '',
+    sipState: 'connecting',
+    sipWho: '',
+    banner: null,
   });
 
   // DID dropdown — admin can call from any DID in the pool
@@ -118,14 +118,14 @@ export function AdminDialer() {
   const [selectedDid, setSelectedDid] = useState<string>(''); // did_number or empty = use server default
 
   // Refs — don't trigger re-renders
-  const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
-  const callRef       = useRef<CallInfo>({ callId: null, channelId: null, type: null, destination: null });
-  const phoneRef      = useRef<{
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const callRef = useRef<CallInfo>({ callId: null, channelId: null, type: null, destination: null });
+  const phoneRef = useRef<{
     ua: any; session: any; creds: SipCreds | null; registered: boolean; expectInvite: number; fatal: string | null;
   }>({ ua: null, session: null, creds: null, registered: false, expectInvite: 0, fatal: null });
-  const sseRef        = useRef<EventSource | null>(null);
+  const sseRef = useRef<EventSource | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-  const hangingUp     = useRef(false);
+  const hangingUp = useRef(false);
 
   // ── Timer ────────────────────────────────────────────────────────────────
 
@@ -148,8 +148,8 @@ export function AdminDialer() {
     setState(s => ({ ...s, callState, errorMsg }));
   }, []);
 
-  const showBanner = useCallback((html: string, type: 'err' | 'warn' = 'warn') => {
-    setState(s => ({ ...s, banner: { html, type } }));
+  const showBanner = useCallback((html: string, type: 'err' | 'warn' = 'warn', action?: { label: string; onClick: () => void }) => {
+    setState(s => ({ ...s, banner: { html, type, action } }));
   }, []);
 
   const hideBanner = useCallback(() => {
@@ -163,7 +163,7 @@ export function AdminDialer() {
 
     // Terminate any active SIP session
     if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
-      try { phoneRef.current.session.terminate(); } catch (_) {}
+      try { phoneRef.current.session.terminate(); } catch (_) { }
     }
     phoneRef.current.session = null;
 
@@ -200,7 +200,7 @@ export function AdminDialer() {
       if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
       el.play().catch(() => {
         showBanner('<b>Browser blocked audio.</b> Click anywhere to allow it.', 'warn');
-        document.addEventListener('click', () => { hideBanner(); el.play().catch(() => {}); }, { once: true });
+        document.addEventListener('click', () => { hideBanner(); el.play().catch(() => { }); }, { once: true });
       });
     }
 
@@ -227,7 +227,7 @@ export function AdminDialer() {
     // One call at a time
     if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
       if (originator === 'remote') {
-        try { session.terminate({ status_code: 486, reason_phrase: 'Busy Here' }); } catch (_) {}
+        try { session.terminate({ status_code: 486, reason_phrase: 'Busy Here' }); } catch (_) { }
       }
       return;
     }
@@ -239,7 +239,7 @@ export function AdminDialer() {
     };
 
     session.on('peerconnection', () => attachRemoteAudio(session));
-    session.on('accepted',       () => attachRemoteAudio(session));
+    session.on('accepted', () => attachRemoteAudio(session));
     session.on('confirmed', () => {
       attachRemoteAudio(session);
       if (callRef.current.type === 'internal') {
@@ -357,8 +357,8 @@ export function AdminDialer() {
 
       setState(s => ({ ...s, sipState: 'connecting' }));
 
-      ua.on('connected',    () => setState(s => ({ ...s, sipState: 'connecting' })));
-      ua.on('registered',   () => {
+      ua.on('connected', () => setState(s => ({ ...s, sipState: 'connecting' })));
+      ua.on('registered', () => {
         phoneRef.current.registered = true;
         setState(s => ({ ...s, sipState: 'registered' }));
         hideBanner();
@@ -491,9 +491,9 @@ export function AdminDialer() {
     const sse = new EventSource(`${DIALER}/events`);
     sseRef.current = sse;
     sse.onmessage = (msg) => {
-      try { handleEvent(JSON.parse(msg.data)); } catch (_) {}
+      try { handleEvent(JSON.parse(msg.data)); } catch (_) { }
     };
-    sse.onerror = () => {}; // EventSource auto-retries
+    sse.onerror = () => { }; // EventSource auto-retries
   }, [handleEvent]);
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
@@ -514,17 +514,17 @@ export function AdminDialer() {
     const portal = typeof window !== 'undefined' ? getPortal() : 'admin';
     const didPath = portal === 'customer' ? '/dids/company/mine' : '/dids';
     const token = typeof window !== 'undefined' ? getAccessToken() : '';
-    
+
     fetch(`${API}${didPath}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.data) setDids(d.data); })
-      .catch(() => {});
+      .catch(() => { });
 
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (sseRef.current) sseRef.current.close();
-      if (phoneRef.current.ua) { try { phoneRef.current.ua.stop(); } catch (_) {} }
+      if (phoneRef.current.ua) { try { phoneRef.current.ua.stop(); } catch (_) { } }
       if (audio.parentNode) audio.parentNode.removeChild(audio);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -538,15 +538,23 @@ export function AdminDialer() {
     const type = classifyDestination(num);
     if (type === 'none') return;
 
-    // Block PSTN calls if softphone not registered (no audio)
+    // Block PSTN calls if softphone not registered (no audio with agent-bridge flow)
     if (type === 'pstn' && phoneRef.current.creds?.enabled && !phoneRef.current.registered) {
+      const wsUrl = phoneRef.current.creds?.wsUrl || '';
+      const trustUrl = wsUrl.replace(/^wss:\/\//i, 'https://').replace(/\/ws$/, '');
       showBanner(
-        '<b>Softphone not registered.</b> Wait for "Registered" status before placing a PSTN call ' +
-        '— otherwise the call will connect with no audio.',
-        'err'
+        '<b>Softphone not registered.</b> The browser softphone must be connected before placing a call. ' +
+        'If you see an SSL error, trust the certificate first then retry.',
+        'err',
+        trustUrl
+          ? {
+              label: `🔓 Trust Certificate (${trustUrl})`,
+              onClick: () => window.open(trustUrl, '_blank', 'noopener,noreferrer'),
+            }
+          : undefined
       );
       setStatus('error', 'Softphone not registered');
-      setTimeout(() => resetState(), 3000);
+      setTimeout(() => resetState(), 6000);
       return;
     }
 
@@ -604,8 +612,8 @@ export function AdminDialer() {
       }
 
       callRef.current = {
-        callId:      data.callId || null,
-        channelId:   data.id     || null,
+        callId: data.callId || null,
+        channelId: data.id || null,
         type,
         destination: data.destination || num,
       };
@@ -634,7 +642,7 @@ export function AdminDialer() {
 
     // End SIP session immediately
     if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
-      try { phoneRef.current.session.terminate(); } catch (_) {}
+      try { phoneRef.current.session.terminate(); } catch (_) { }
     }
     phoneRef.current.session = null;
     if (remoteAudioRef.current) {
@@ -669,9 +677,9 @@ export function AdminDialer() {
     if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
       try {
         if (isMuted) phoneRef.current.session.unmute({ audio: true });
-        else          phoneRef.current.session.mute(  { audio: true });
+        else phoneRef.current.session.mute({ audio: true });
         setState(s => ({ ...s, isMuted: !isMuted }));
-      } catch (_) {}
+      } catch (_) { }
       return;
     }
 
@@ -682,7 +690,7 @@ export function AdminDialer() {
       const method = isMuted ? 'DELETE' : 'POST';
       const res = await fetch(`${DIALER}/calls/${encodeURIComponent(channelId)}/mute`, { method });
       if (res.ok || res.status === 204) setState(s => ({ ...s, isMuted: !isMuted }));
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // ── HOLD ─────────────────────────────────────────────────────────────────
@@ -694,9 +702,9 @@ export function AdminDialer() {
     if (phoneRef.current.session && !phoneRef.current.session.isEnded()) {
       try {
         if (isOnHold) phoneRef.current.session.unhold();
-        else           phoneRef.current.session.hold();
+        else phoneRef.current.session.hold();
         setState(s => ({ ...s, isOnHold: !isOnHold }));
-      } catch (_) {}
+      } catch (_) { }
       return;
     }
 
@@ -707,7 +715,7 @@ export function AdminDialer() {
       const method = isOnHold ? 'DELETE' : 'POST';
       const res = await fetch(`${DIALER}/calls/${encodeURIComponent(channelId)}/hold`, { method });
       if (res.ok || res.status === 204) setState(s => ({ ...s, isOnHold: !isOnHold }));
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // ── Answer / Reject incoming (when an unexpected INVITE arrives) ───────────
@@ -725,7 +733,7 @@ export function AdminDialer() {
 
   function handleRejectIncoming() {
     if (!phoneRef.current.session) return;
-    try { phoneRef.current.session.terminate({ status_code: 603, reason_phrase: 'Declined' }); } catch (_) {}
+    try { phoneRef.current.session.terminate({ status_code: 603, reason_phrase: 'Declined' }); } catch (_) { }
     phoneRef.current.session = null;
     resetState('Call declined');
   }
@@ -745,32 +753,32 @@ export function AdminDialer() {
 
   const { callState, number, isMuted, isOnHold, elapsedSeconds, errorMsg, sipState, sipWho, banner, callRoute } = state;
 
-  const isActive  = callState === 'connected';
+  const isActive = callState === 'connected';
   const isRinging = callState === 'ringing' || callState === 'agent-answered';
-  const isBusy    = callState === 'dialing' || callState === 'ended';
-  const isInCall  = isActive || isRinging || isBusy;
+  const isBusy = callState === 'dialing' || callState === 'ended';
+  const isInCall = isActive || isRinging || isBusy;
 
   const { text: stateText, color: stateColor } = STATE_LABEL[callState];
 
   const sipDotColor =
-    sipState === 'registered'   ? '#22c55e' :
-    sipState === 'connecting'   ? '#f59e0b' :
-    sipState === 'disabled'     ? '#94a3b8' :
-    '#ef4444';
+    sipState === 'registered' ? '#22c55e' :
+      sipState === 'connecting' ? '#f59e0b' :
+        sipState === 'disabled' ? '#94a3b8' :
+          '#ef4444';
 
   const sipLabel =
-    sipState === 'registered'   ? 'Registered — audio ready' :
-    sipState === 'connecting'   ? 'Connecting…' :
-    sipState === 'unregistered' ? 'Unregistered' :
-    sipState === 'failed'       ? 'Registration failed' :
-    sipState === 'disabled'     ? 'Softphone disabled' :
-    'Starting…';
+    sipState === 'registered' ? 'Registered — audio ready' :
+      sipState === 'connecting' ? 'Connecting…' :
+        sipState === 'unregistered' ? 'Unregistered' :
+          sipState === 'failed' ? 'Registration failed' :
+            sipState === 'disabled' ? 'Softphone disabled' :
+              'Starting…';
 
   const keys = [
-    { digit: '1', letters: '' },   { digit: '2', letters: 'ABC' }, { digit: '3', letters: 'DEF' },
-    { digit: '4', letters: 'GHI' },{ digit: '5', letters: 'JKL' }, { digit: '6', letters: 'MNO' },
-    { digit: '7', letters: 'PQRS' },{ digit: '8', letters: 'TUV' },{ digit: '9', letters: 'WXYZ' },
-    { digit: '*', letters: '' },   { digit: '0', letters: '+' },   { digit: '#', letters: '' },
+    { digit: '1', letters: '' }, { digit: '2', letters: 'ABC' }, { digit: '3', letters: 'DEF' },
+    { digit: '4', letters: 'GHI' }, { digit: '5', letters: 'JKL' }, { digit: '6', letters: 'MNO' },
+    { digit: '7', letters: 'PQRS' }, { digit: '8', letters: 'TUV' }, { digit: '9', letters: 'WXYZ' },
+    { digit: '*', letters: '' }, { digit: '0', letters: '+' }, { digit: '#', letters: '' },
   ];
 
   return (
@@ -792,13 +800,21 @@ export function AdminDialer() {
         {/* ── Error / warning banner ─────────────────────────────────────── */}
         {banner && (
           <div
-            className={`w-full mb-3 text-xs px-3 py-2 rounded-xl border leading-relaxed ${
-              banner.type === 'err'
+            className={`w-full mb-3 text-xs px-3 py-2 rounded-xl border leading-relaxed ${banner.type === 'err'
                 ? 'bg-red-50 border-red-200 text-red-700'
                 : 'bg-amber-50 border-amber-200 text-amber-700'
-            }`}
-            dangerouslySetInnerHTML={{ __html: banner.html }}
-          />
+              }`}
+          >
+            <span dangerouslySetInnerHTML={{ __html: banner.html }} />
+            {banner.action && (
+              <button
+                onClick={banner.action.onClick}
+                className="mt-1.5 block underline underline-offset-2 font-semibold hover:opacity-70 transition-opacity"
+              >
+                {banner.action.label}
+              </button>
+            )}
+          </div>
         )}
 
         {/* ── DID Caller ID Selector ────────────────────────────────────── */}
@@ -951,11 +967,10 @@ export function AdminDialer() {
             {/* Mute */}
             <button
               onClick={handleMute}
-              className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 ${
-                isMuted
+              className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 ${isMuted
                   ? 'bg-slate-800 text-white shadow-lg shadow-slate-800/20'
                   : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-              }`}
+                }`}
             >
               {isMuted ? <MicOff size={20} className="mb-1" /> : <Mic size={20} className="mb-1" />}
               <span className="text-xs font-medium">{isMuted ? 'Unmute' : 'Mute'}</span>
@@ -964,11 +979,10 @@ export function AdminDialer() {
             {/* Hold */}
             <button
               onClick={handleHold}
-              className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 ${
-                isOnHold
+              className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 ${isOnHold
                   ? 'bg-amber-100 text-amber-700'
                   : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-              }`}
+                }`}
             >
               {isOnHold ? <Play size={20} className="mb-1" /> : <Pause size={20} className="mb-1" />}
               <span className="text-xs font-medium">{isOnHold ? 'Unhold' : 'Hold'}</span>
@@ -1006,11 +1020,10 @@ export function AdminDialer() {
             <button
               onClick={isActive ? handleHangup : (isRinging ? handleHangup : undefined)}
               disabled={isBusy && !isRinging}
-              className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-medium text-white transition-all duration-200 ${
-                isBusy && !isRinging
+              className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-medium text-white transition-all duration-200 ${isBusy && !isRinging
                   ? 'bg-slate-300 cursor-not-allowed'
                   : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 hover:scale-[1.02] active:scale-[0.98]'
-              }`}
+                }`}
             >
               {isBusy && !isRinging ? (
                 <>
