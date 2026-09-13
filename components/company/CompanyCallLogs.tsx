@@ -5,6 +5,7 @@
 // recording unique id checks, and complete AI transcribe & summary viewing.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   PhoneOutgoing, PhoneIncoming, PhoneMissed,
   RefreshCw, Search, ChevronLeft, ChevronRight,
@@ -30,6 +31,8 @@ interface CallRecord {
   status: string; // Raw API: "ANSWERED" | "NO ANSWER" | "BUSY" | "FAILED" | "CONGESTION"
   uniqueid?: string;
   queue?: string;
+  userName?: string | null;
+  leadName?: string | null;
 }
 
 type CallStatus = 'all' | 'ANSWERED' | 'NO ANSWER' | 'BUSY' | 'FAILED' | 'CONGESTION';
@@ -209,6 +212,7 @@ const STATUS_LABELS: Record<CallStatus, string> = {
 };
 
 export function CompanyCallLogs() {
+  const router = useRouter();
   const [logs, setLogs] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -239,12 +243,24 @@ export function CompanyCallLogs() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const [isCompanyAdmin, setIsCompanyAdmin] = useState(true);
+
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      setLogs(await fetchCallLogs());
+      const res = await telephonyApi.getCompanyCallLogs();
+      if (res.data) {
+        setLogs(res.data.logs || []);
+        setIsCompanyAdmin(res.data.isCompanyAdmin ?? true);
+      }
     }
-    catch (e: any) { setError(e.message ?? 'Failed to load call logs'); }
+    catch (e: any) {
+      try {
+        setLogs(await fetchCallLogs());
+      } catch (fallbackErr: any) {
+        setError(e.message ?? 'Failed to load call logs');
+      }
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -287,7 +303,7 @@ export function CompanyCallLogs() {
     // Search
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      if (![log.callerid, log.destination, log.extension, log.context, log.status, log.uniqueid].filter(Boolean).join(' ').toLowerCase().includes(q)) return false;
+      if (![log.callerid, log.destination, log.extension, log.context, log.status, log.uniqueid, log.userName, log.leadName].filter(Boolean).join(' ').toLowerCase().includes(q)) return false;
     }
     return true;
   }), [logs, archived, viewStatus, callStatus, startDate, endDate, searchTerm]);
@@ -564,6 +580,7 @@ export function CompanyCallLogs() {
                     style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#3b82f6' }} />
                 </th>
                 <th style={TH}>Date &amp; Time ↑</th>
+                {isCompanyAdmin && <th style={TH}>User / Agent</th>}
                 <th style={TH}>ID / Ext</th>
                 <th style={TH}>Customer Number</th>
                 <th style={TH}>Direction</th>
@@ -593,6 +610,18 @@ export function CompanyCallLogs() {
                         {formatDateTime(log.start_time)}
                       </span>
                     </td>
+                    {isCompanyAdmin && (
+                      <td style={TD}>
+                        <div className="flex flex-col">
+                          <span style={{ color: '#1e293b', fontWeight: 600, fontSize: 12 }}>
+                            {log.userName || '—'}
+                          </span>
+                          <span style={{ color: '#94a3b8', fontSize: 10 }}>
+                            Ext: {log.extension || 'System'}
+                          </span>
+                        </div>
+                      </td>
+                    )}
                     <td style={TD}>
                       <div className="flex flex-col">
                         <span style={{ color: '#2563eb', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>
@@ -604,9 +633,16 @@ export function CompanyCallLogs() {
                       </div>
                     </td>
                     <td style={TD}>
-                      <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12 }}>
-                        {direction === 'out' ? log.destination : log.callerid}
-                      </span>
+                      <div className="flex flex-col">
+                        <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12 }}>
+                          {direction === 'out' ? log.destination : log.callerid}
+                        </span>
+                        {log.leadName && (
+                          <span className="inline-flex items-center text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 mt-0.5 self-start">
+                            {log.leadName}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={TD}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -637,10 +673,10 @@ export function CompanyCallLogs() {
                       <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                         <ActionBtn
                           id={`co-view-${log.id}`}
-                          icon={<Sparkles size={11} />}
+                          icon={<Eye size={11} />}
                           label="View"
                           color="#3b82f6"
-                          onClick={() => setViewingCall(log)}
+                          onClick={() => router.push(`/company/logs/detailed?callId=${encodeURIComponent(log.uniqueid || String(log.id))}`)}
                         />
                         <ActionBtn
                           id={`co-listen-${log.id}`}

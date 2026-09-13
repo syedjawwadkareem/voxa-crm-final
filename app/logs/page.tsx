@@ -68,7 +68,7 @@ const levelColors: Record<string, 'success' | 'warning' | 'error' | 'info'> = {
   INFO: 'info',
   WARNING: 'warning',
   ERROR: 'error',
-  DEBUG: 'default',
+  DEBUG: 'info',
 }
 
 export default function Logs() {

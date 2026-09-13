@@ -208,8 +208,9 @@ function MetaSetupForm({ onSaved }: { onSaved: () => void }) {
 
 // ─── Meta: Webhook Info Box ───────────────────────────────────────────────────
 
-function WebhookInfoBox({ companyId }: { companyId: string | null | undefined }) {
+function WebhookInfoBox({ companyId, verifyToken }: { companyId: string | null | undefined; verifyToken?: string }) {
   const webhookUrl = companyWebhookUrl(companyId);
+  const secretToken = verifyToken || VERIFY_TOKEN;
   const [copied, setCopied] = useState<'url' | 'token' | null>(null);
 
   const copy = (text: string, which: 'url' | 'token') => {
@@ -227,7 +228,7 @@ function WebhookInfoBox({ companyId }: { companyId: string | null | undefined })
         <span className="chip chip-blue ml-auto">Required step</span>
       </div>
       <p className="text-sm text-slate-600 mb-4">
-        Add the following URL in your <strong>Meta Developer Portal</strong> → App → Webhooks → Subscribe to <em>leadgen</em> events.
+        Add the following URL in your <strong>Meta Developer Portal</strong> → App → Webhooks → Subscribe to <em>leadgen</em> & <em>messages</em> events.
       </p>
 
       {/* Callback URL */}
@@ -245,14 +246,14 @@ function WebhookInfoBox({ companyId }: { companyId: string | null | undefined })
             {copied === 'url' ? 'Copied!' : 'Copy'}
           </button>
         </div>
-        <label className="text-xs font-semibold text-slate-500 block mb-1.5 mt-2.5 uppercase tracking-wide">Webhook Secret Token</label>
+        <label className="text-xs font-semibold text-slate-500 block mb-1.5 mt-2.5 uppercase tracking-wide">Webhook Secret Token (Unique to your company)</label>
         <div className="flex items-center gap-2">
           <div className="flex-1 font-mono text-xs bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-slate-700 truncate">
-            {VERIFY_TOKEN}
+            {secretToken}
           </div>
           <button
             className="btn-outline flex-shrink-0 flex items-center gap-1.5"
-            onClick={() => copy(VERIFY_TOKEN, 'token')}
+            onClick={() => copy(secretToken, 'token')}
           >
             {copied === 'token' ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
             {copied === 'token' ? 'Copied!' : 'Copy'}
@@ -667,7 +668,7 @@ function MetaConnectedView({
         </div>
       </div>
 
-      <WebhookInfoBox companyId={companyId} />
+      <WebhookInfoBox companyId={companyId} verifyToken={integration.webhookVerifyToken} />
 
       <MetaFormGenerator onFormCreated={onFormCreated} />
     </div>

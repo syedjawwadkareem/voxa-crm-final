@@ -141,6 +141,7 @@ export interface CreateCompanyUserPayload {
   username?: string;
   phoneNumber?: string;
   roleId?: string;
+  status?: CompanyUserStatus;
 }
 
 // ─── Roles ──────────────────────────────────────────────────────────────────

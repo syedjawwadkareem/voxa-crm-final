@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { Building2, CircleCheck, PauseCircle, Users, ArrowRight, TriangleAlert, TrendingUp } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { companiesApi, adminUsersApi } from '@/lib/api';
-import type { Company, AdminUser, LucideIcon } from '@/lib/types';
+import type { Company, AdminUser } from '@/lib/types';
 
 interface KpiCard {
   label: string;

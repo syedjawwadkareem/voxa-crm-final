@@ -14,7 +14,6 @@ const statusMap: Record<string, string> = {
   pending: 'chip chip-yellow',
   inactive: 'chip chip-gray',
   exhausted: 'chip chip-red',
-  'active': 'chip chip-green',
   paid: 'chip chip-green',
   open: 'chip chip-blue',
   void: 'chip chip-gray',

@@ -109,7 +109,17 @@ export const api = {
 
 // ── Auth endpoints ────────────────────────────────────────────────────────────
 
-import type { ApiSuccess, AuthUser, Portal } from './types';
+import type {
+  ApiSuccess, AuthUser, Portal, Company, CreateCompanyPayload, CompanyStatus, TenantInfo,
+  Plan, AdminUser, CreateAdminUserPayload, CompanyUser, CreateCompanyUserPayload,
+  Role, CreateRolePayload, Order, CreateOrderPayload
+} from './types';
+
+export type {
+  Company, CreateCompanyPayload, CompanyStatus, TenantInfo,
+  Plan, AdminUser, CreateAdminUserPayload, CompanyUser, CreateCompanyUserPayload,
+  Role, CreateRolePayload, Order, CreateOrderPayload
+};
 
 interface LoginResponse {
   accessToken: string;
@@ -132,8 +142,6 @@ export const authApi = {
 
 // ── Company endpoints (admin portal) ─────────────────────────────────────────
 
-export type { Company, CreateCompanyPayload, CompanyStatus, TenantInfo } from './types';
-
 export const companiesApi = {
   list: () => api.get<ApiSuccess<Company[]>>('/companies'),
   getById: (id: string) => api.get<ApiSuccess<Company>>(`/companies/${id}`),
@@ -144,8 +152,6 @@ export const companiesApi = {
   updateTenant: (id: string, tenant: TenantInfo) => api.post<ApiSuccess<TenantInfo>>(`/companies/${id}/tenant`, tenant),
 };
 
-export type { Plan } from './types';
-
 export const billingApi = {
   getPlans: () => api.get<ApiSuccess<Plan[]>>('/billing/plans'),
   createPlan: (payload: Partial<Plan>) => api.post<ApiSuccess<Plan>>('/billing/plans', payload),
@@ -154,8 +160,6 @@ export const billingApi = {
 };
 
 // ── Admin users endpoints ────────────────────────────────────────────────────
-
-export type { AdminUser, CreateAdminUserPayload } from './types';
 
 export const adminUsersApi = {
   list: () => api.get<ApiSuccess<AdminUser[]>>('/admin-users'),
@@ -168,8 +172,6 @@ export const adminUsersApi = {
 
 // ── Company users endpoints ──────────────────────────────────────────────────
 
-export type { CompanyUser, CreateCompanyUserPayload } from './types';
-
 export const companyUsersApi = {
   list: () => api.get<ApiSuccess<CompanyUser[]>>('/company-users'),
   getById: (id: string) => api.get<ApiSuccess<CompanyUser>>(`/company-users/${id}`),
@@ -180,8 +182,6 @@ export const companyUsersApi = {
 };
 
 // ── Roles endpoints ───────────────────────────────────────────────────────────
-
-export type { Role, CreateRolePayload } from './types';
 
 export const rolesApi = {
   // Admin portal (Voxa internal roles)
@@ -216,6 +216,7 @@ export interface PlatformIntegration {
   leadsReceivedCount: number;
   lastSyncAt?: string;
   connectedAt?: string;
+  webhookVerifyToken?: string;
   credentials: MetaCredentials;
 }
 
@@ -246,6 +247,31 @@ export interface MetaFormLead {
   created_time: string;
   raw: Record<string, string>;
 }
+
+export interface MessengerConversation {
+  thread_id: string;
+  psid: string;
+  display_name: string;
+  snippet: string;
+  updated_time: string;
+}
+
+export interface MessengerMessage {
+  direction: 'inbound' | 'outbound';
+  content: string;
+  sent_at: string;
+}
+
+export const messengerApi = {
+  getConversations: () =>
+    api.get<{ success: boolean; conversations: MessengerConversation[] }>('/integrations/messages'),
+
+  getThread: (psid: string) =>
+    api.get<{ success: boolean; messages: MessengerMessage[] }>(`/integrations/messages/${psid}`),
+
+  sendMessage: (psid: string, text: string) =>
+    api.post<{ success: boolean }>('/integrations/messages/send', { psid, text }),
+};
 
 export const integrationsApi = {
   getConfig: (platformType: PlatformType) =>
@@ -279,6 +305,7 @@ export interface CapturedLead {
   phone: string;
   form_id: string | null;
   form_name: string | null;
+  source?: string | null;
   lead_status: string;
   assigned_agent: string | null;
   created_at: string;
@@ -297,6 +324,12 @@ export const leadsApi = {
 
   getStats: () =>
     api.get<{ success: boolean; stats: LeadsStats }>('/leads/stats'),
+
+  addSingleLead: (payload: { fullName?: string; email?: string; phone?: string; formName?: string }) =>
+    api.post<{ success: boolean; message: string; lead: CapturedLead }>('/leads/single', payload),
+
+  importCsvLeads: (payload: { formName?: string; leads: Array<{ fullName?: string; email?: string; phone?: string }> }) =>
+    api.post<{ success: boolean; message: string; count: number; form_name: string }>('/leads/csv', payload),
 };
 
 // ── IVR Campaigns endpoints ────────────────────────────────────────────────────
@@ -361,8 +394,6 @@ export const audioApi = {
 };
 
 // ── Orders endpoints ─────────────────────────────────────────────────────────
-
-export type { Order, CreateOrderPayload } from './types';
 
 export const ordersApi = {
   list: () => api.get<ApiSuccess<Order[]>>('/orders'),
@@ -633,6 +664,10 @@ export interface CallAnalysisRecord {
 }
 
 export const telephonyApi = {
+  getCompanyCallLogs: () => {
+    return api.get<ApiSuccess<{ logs: any[]; isCompanyAdmin: boolean; roleName: string }>>('/telephony/company/logs');
+  },
+
   checkRecording: (params: { uniqueid?: string; phone?: string; filename?: string }) => {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
     return api.get<ApiSuccess<{ exists: boolean; uniqueid?: string; filename?: string; stream_url: string }>>(`/telephony/recordings/check?${qs}`);
@@ -679,7 +714,25 @@ export const telephonyApi = {
   }) => {
     return api.post<ApiSuccess<SummarizeResult>>('/telephony/calls/summarize', payload);
   },
+
+  getCallNotes: (callId: string) => {
+    return api.get<ApiSuccess<CallNoteRecord[]>>(`/telephony/notes/${encodeURIComponent(callId)}`);
+  },
+
+  addCallNote: (callId: string, note: string) => {
+    return api.post<ApiSuccess<CallNoteRecord>>(`/telephony/notes/${encodeURIComponent(callId)}`, { note });
+  },
 };
+
+export interface CallNoteRecord {
+  _id: string;
+  companyId: string;
+  callId: string;
+  userId: string;
+  authorName: string;
+  note: string;
+  createdAt: string;
+}
 
 
 

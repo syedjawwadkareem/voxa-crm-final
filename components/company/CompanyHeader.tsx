@@ -5,7 +5,7 @@
 interface CompanyHeaderProps {
   title: string;
   subtitle?: string;
-  onMenuClick: () => void;
+  onMenuClick?: () => void;
   actions?: React.ReactNode;
 }
 
