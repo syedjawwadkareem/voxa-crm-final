@@ -199,7 +199,7 @@ export const rolesApi = {
 
 // ── Integrations endpoints ─────────────────────────────────────────────────────
 
-export type PlatformType = 'meta' | 'whatsapp' | 'sms' | 'email';
+export type PlatformType = 'meta' | 'whatsapp' | 'sms' | 'email' | 'shopify' | 'daraz';
 
 export interface MetaCredentials {
   metaAppId?: string;
@@ -209,6 +209,25 @@ export interface MetaCredentials {
   metaAdAccountId?: string;
 }
 
+export interface ShopifyCredentials {
+  shopifyShopUrl?: string;
+  shopifyAccessToken?: string;
+  shopifyApiKey?: string;
+  shopifyApiSecretKey?: string;
+  shopifyApiVersion?: string;
+}
+
+export interface DarazCredentials {
+  darazShopName?: string;
+  darazSellerId?: string;
+  darazAppKey?: string;
+  darazAppSecret?: string;
+  darazAccessToken?: string;
+  darazRegion?: string;
+}
+
+export type PlatformCredentials = MetaCredentials & ShopifyCredentials & DarazCredentials & Record<string, any>;
+
 export interface PlatformIntegration {
   _id: string;
   platformType: PlatformType;
@@ -217,7 +236,7 @@ export interface PlatformIntegration {
   lastSyncAt?: string;
   connectedAt?: string;
   webhookVerifyToken?: string;
-  credentials: MetaCredentials;
+  credentials: PlatformCredentials;
 }
 
 export interface MetaForm {
@@ -277,7 +296,7 @@ export const integrationsApi = {
   getConfig: (platformType: PlatformType) =>
     api.get<{ success: boolean; data: PlatformIntegration | null }>(`/integrations/config/${platformType}`),
 
-  saveConfig: (platformType: PlatformType, payload: MetaCredentials) =>
+  saveConfig: (platformType: PlatformType, payload: PlatformCredentials) =>
     api.post<{ success: boolean; message: string; data: PlatformIntegration }>(`/integrations/config/${platformType}`, payload),
 
   deleteConfig: (platformType: PlatformType) =>

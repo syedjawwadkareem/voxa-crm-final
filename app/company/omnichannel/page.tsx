@@ -9,16 +9,24 @@ import {
   Share2 as Facebook, MessageSquare, Phone, Mail, CheckCircle2,
   XCircle, X, Link2, Copy, Eye, EyeOff, Plus, Trash2,
   GripVertical, AlertCircle, ChevronRight, ArrowLeft,
-  Info, Loader2, RefreshCw, ExternalLink, Zap
+  Info, Loader2, RefreshCw, ExternalLink, Zap,
+  ShoppingBag, Package
 } from 'lucide-react';
 import { CompanyHeader } from '@/components/company/CompanyHeader';
-import { integrationsApi, type MetaCredentials, type PlatformIntegration } from '@/lib/api';
+import {
+  integrationsApi,
+  type MetaCredentials,
+  type ShopifyCredentials,
+  type DarazCredentials,
+  type PlatformIntegration,
+  type PlatformType
+} from '@/lib/api';
 import { getUser } from '@/lib/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MainTab = 'meta' | 'whatsapp' | 'sms' | 'email';
-type MetaSubView = 'setup' | 'connected';
+type MainTab = 'shopify' | 'daraz' | 'meta' | 'whatsapp' | 'sms' | 'email';
+type SubView = 'setup' | 'connected';
 type FormBuilderTab = 'builder' | 'preview' | 'json';
 
 interface FormField {
@@ -676,6 +684,513 @@ function MetaConnectedView({
 }
 
 
+// ─── Shopify: Credentials Setup Form ──────────────────────────────────────────
+
+function ShopifySetupForm({ onSaved }: { onSaved: () => void }) {
+  const [form, setForm] = useState<ShopifyCredentials>({
+    shopifyShopUrl: '',
+    shopifyAccessToken: '',
+    shopifyApiKey: '',
+    shopifyApiSecretKey: '',
+    shopifyApiVersion: '2024-04',
+  });
+  const [showSecret, setShowSecret] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    if (!form.shopifyShopUrl || !form.shopifyAccessToken) {
+      setError('Shop Domain (e.g. your-store.myshopify.com) and Admin API Access Token are required.');
+      return;
+    }
+    let cleanDomain = form.shopifyShopUrl.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    if (!cleanDomain.includes('.')) {
+      cleanDomain = `${cleanDomain}.myshopify.com`;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      await integrationsApi.saveConfig('shopify', {
+        ...form,
+        shopifyShopUrl: cleanDomain,
+      });
+      onSaved();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save Shopify credentials');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="card p-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: '#ecfdf5' }}>
+          <ShoppingBag size={22} style={{ color: '#008060' }} strokeWidth={1.75} />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Connect Shopify Store</h2>
+          <p className="text-slate-500 text-sm">Sync your Shopify orders, products, and customer data directly with Voxa CRM.</p>
+        </div>
+      </div>
+
+      {/* Instructions banner */}
+      <div className="rounded-xl p-4 mb-6 border flex items-start gap-3" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
+        <Info size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#16a34a' }} />
+        <div className="text-sm" style={{ color: '#14532d' }}>
+          <p className="font-semibold mb-1">How to get your Shopify Admin API Token:</p>
+          <ol className="list-decimal list-inside space-y-1 text-xs text-emerald-900/90">
+            <li>In your Shopify Admin, go to <strong>Settings &gt; Apps and sales channels &gt; Develop apps</strong>.</li>
+            <li>Click <strong>Create an app</strong> and name it (e.g., "Voxa CRM").</li>
+            <li>Configure Admin API scopes (enable <code>read_orders</code>, <code>write_orders</code>, <code>read_customers</code>, <code>read_products</code>).</li>
+            <li>Click <strong>Install App</strong> and copy your <strong>Admin API Access Token</strong> (starts with <code>shpat_</code>).</li>
+          </ol>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">Shop Domain (myshopify.com) *</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="my-store.myshopify.com"
+            value={form.shopifyShopUrl ?? ''}
+            onChange={e => setForm(f => ({ ...f, shopifyShopUrl: e.target.value }))}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">API Version</label>
+          <select
+            className="select"
+            value={form.shopifyApiVersion ?? '2024-04'}
+            onChange={e => setForm(f => ({ ...f, shopifyApiVersion: e.target.value }))}
+          >
+            <option value="2024-04">2024-04 (Latest Supported)</option>
+            <option value="2024-01">2024-01</option>
+            <option value="2023-10">2023-10</option>
+          </select>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">Admin API Access Token *</label>
+          <div className="relative flex items-center">
+            <input
+              type={showToken ? 'text' : 'password'}
+              className="input pr-9 font-mono text-xs"
+              placeholder="shpat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              value={form.shopifyAccessToken ?? ''}
+              onChange={e => setForm(f => ({ ...f, shopifyAccessToken: e.target.value }))}
+            />
+            <button
+              type="button"
+              className="absolute right-2 text-slate-400 hover:text-slate-700 transition-colors"
+              onClick={() => setShowToken(v => !v)}
+            >
+              {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">API Key (Client ID) <span className="text-slate-400 font-normal">(Optional)</span></label>
+          <input
+            type="text"
+            className="input font-mono text-xs"
+            placeholder="e.g. 7c9a6b..."
+            value={form.shopifyApiKey ?? ''}
+            onChange={e => setForm(f => ({ ...f, shopifyApiKey: e.target.value }))}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">API Secret Key <span className="text-slate-400 font-normal">(Optional / Webhooks)</span></label>
+          <div className="relative flex items-center">
+            <input
+              type={showSecret ? 'text' : 'password'}
+              className="input pr-9 font-mono text-xs"
+              placeholder="••••••••••••"
+              value={form.shopifyApiSecretKey ?? ''}
+              onChange={e => setForm(f => ({ ...f, shopifyApiSecretKey: e.target.value }))}
+            />
+            <button
+              type="button"
+              className="absolute right-2 text-slate-400 hover:text-slate-700 transition-colors"
+              onClick={() => setShowSecret(v => !v)}
+            >
+              {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-4 rounded-lg p-3 flex items-center gap-2 text-sm text-red-700" style={{ background: '#fee2e2' }}>
+          <XCircle size={14} /> {error}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mt-6">
+        <button className="btn-primary flex items-center gap-2" onClick={handleSave} disabled={saving} style={{ background: '#008060' }}>
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+          {saving ? 'Connecting…' : 'Save & Connect Shopify'}
+        </button>
+        <span className="text-xs text-slate-400">
+          All credentials are encrypted and stored securely.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shopify: Connected View ──────────────────────────────────────────────────
+
+function ShopifyConnectedView({
+  integration, companyId, onDisconnect, onRefresh
+}: {
+  integration: PlatformIntegration;
+  companyId: string | null | undefined;
+  onDisconnect: () => void;
+  onRefresh: () => void;
+}) {
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const webhookUrl = `${BASE_URL}/api/v1/integrations/webhook/shopify/${companyId || ''}`;
+
+  const copy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 1800);
+    });
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm('Are you sure you want to disconnect Shopify integration?')) return;
+    setDisconnecting(true);
+    try {
+      await integrationsApi.deleteConfig('shopify');
+      onDisconnect();
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Status row */}
+      <div className="card p-5 flex items-center gap-4 border-2" style={{ borderColor: '#bbf7d0' }}>
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: '#ecfdf5' }}>
+          <ShoppingBag size={22} style={{ color: '#008060' }} strokeWidth={1.75} />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-800 text-sm">Shopify Store Integration</span>
+            <span className="chip chip-green flex items-center gap-1">
+              <CheckCircle2 size={11} /> Connected
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 mt-1.5 text-xs text-slate-500">
+            <span>Store: <span className="font-mono font-semibold text-slate-700">{integration.credentials?.shopifyShopUrl || '—'}</span></span>
+            <span>API Version: <span className="font-mono text-slate-700">{integration.credentials?.shopifyApiVersion || '2024-04'}</span></span>
+            {integration.connectedAt && (
+              <span>Connected: {new Date(integration.connectedAt).toLocaleDateString()}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="btn-outline flex items-center gap-1.5 text-xs" onClick={onRefresh}>
+            <RefreshCw size={12} /> Refresh
+          </button>
+          <button
+            className="btn-outline flex items-center gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50"
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+          >
+            {disconnecting ? <Loader2 size={12} className="animate-spin" /> : <Link2 size={12} />}
+            Disconnect
+          </button>
+        </div>
+      </div>
+
+      {/* Webhook Configuration Card */}
+      <div className="card p-5 border-2" style={{ borderColor: '#d1fae5', background: '#f0fdf4' }}>
+        <div className="flex items-center gap-2 mb-3">
+          <Zap size={16} style={{ color: '#059669' }} />
+          <span className="font-semibold text-slate-800 text-sm">Shopify Real-Time Webhook URL</span>
+          <span className="chip chip-green ml-auto">Optional Real-time Sync</span>
+        </div>
+        <p className="text-xs text-slate-600 mb-3">
+          To receive instant order and customer updates in Voxa CRM, configure this webhook endpoint in your Shopify Admin under <strong>Settings &gt; Notifications &gt; Webhooks</strong> (format: JSON, events: <code>orders/create</code>, <code>orders/updated</code>).
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 font-mono text-xs bg-white border border-emerald-200 rounded-lg px-3 py-2.5 text-slate-700 truncate">
+            {webhookUrl}
+          </div>
+          <button
+            className="btn-outline flex-shrink-0 flex items-center gap-1.5 text-xs bg-white"
+            onClick={() => copy(webhookUrl, 'shopify-wh')}
+          >
+            {copied === 'shopify-wh' ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
+            {copied === 'shopify-wh' ? 'Copied!' : 'Copy URL'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Daraz: Credentials Setup Form ────────────────────────────────────────────
+
+function DarazSetupForm({ onSaved }: { onSaved: () => void }) {
+  const [form, setForm] = useState<DarazCredentials>({
+    darazShopName: '',
+    darazSellerId: '',
+    darazAppKey: '',
+    darazAppSecret: '',
+    darazAccessToken: '',
+    darazRegion: 'PK',
+  });
+  const [showSecret, setShowSecret] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const REGIONS = [
+    { code: 'PK', name: 'Pakistan (Daraz.pk)' },
+    { code: 'BD', name: 'Bangladesh (Daraz.com.bd)' },
+    { code: 'LK', name: 'Sri Lanka (Daraz.lk)' },
+    { code: 'NP', name: 'Nepal (Daraz.com.np)' },
+    { code: 'MM', name: 'Myanmar (Shop.com.mm)' },
+  ];
+
+  const handleSave = async () => {
+    if (!form.darazShopName || !form.darazSellerId || !form.darazAppKey || !form.darazAppSecret || !form.darazAccessToken) {
+      setError('Shop Name, Seller ID, App Key, App Secret, and Access Token are required.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      await integrationsApi.saveConfig('daraz', form);
+      onSaved();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save Daraz credentials');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="card p-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: '#fff7ed' }}>
+          <Package size={22} style={{ color: '#f85606' }} strokeWidth={1.75} />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Connect Daraz Seller Center</h2>
+          <p className="text-slate-500 text-sm">Connect your Daraz Open Platform account to synchronize marketplace orders and products.</p>
+        </div>
+      </div>
+
+      {/* Instructions banner */}
+      <div className="rounded-xl p-4 mb-6 border flex items-start gap-3" style={{ background: '#fff7ed', borderColor: '#fed7aa' }}>
+        <Info size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#ea580c' }} />
+        <div className="text-sm" style={{ color: '#7c2d12' }}>
+          <p className="font-semibold mb-1">Daraz Open Platform setup:</p>
+          <ol className="list-decimal list-inside space-y-1 text-xs text-amber-950/90">
+            <li>Register as a developer on <strong>open.daraz.com</strong>.</li>
+            <li>Create an app under your developer account to obtain your <strong>App Key</strong> and <strong>App Secret</strong>.</li>
+            <li>Authorize your Seller Center account to generate an <strong>Access Token</strong>.</li>
+            <li>Find your <strong>Seller ID / Short Code</strong> in your Daraz Seller Center Profile settings.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">Marketplace Region *</label>
+          <select
+            className="select"
+            value={form.darazRegion ?? 'PK'}
+            onChange={e => setForm(f => ({ ...f, darazRegion: e.target.value }))}
+          >
+            {REGIONS.map(r => (
+              <option key={r.code} value={r.code}>{r.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">Shop / Brand Name *</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="e.g. My Flagship Store"
+            value={form.darazShopName ?? ''}
+            onChange={e => setForm(f => ({ ...f, darazShopName: e.target.value }))}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">Seller ID / Short Code *</label>
+          <input
+            type="text"
+            className="input font-mono text-xs"
+            placeholder="e.g. PK12345ABC"
+            value={form.darazSellerId ?? ''}
+            onChange={e => setForm(f => ({ ...f, darazSellerId: e.target.value }))}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">App Key (Client Key) *</label>
+          <input
+            type="text"
+            className="input font-mono text-xs"
+            placeholder="e.g. 102938"
+            value={form.darazAppKey ?? ''}
+            onChange={e => setForm(f => ({ ...f, darazAppKey: e.target.value }))}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">App Secret *</label>
+          <div className="relative flex items-center">
+            <input
+              type={showSecret ? 'text' : 'password'}
+              className="input pr-9 font-mono text-xs"
+              placeholder="••••••••••••"
+              value={form.darazAppSecret ?? ''}
+              onChange={e => setForm(f => ({ ...f, darazAppSecret: e.target.value }))}
+            />
+            <button
+              type="button"
+              className="absolute right-2 text-slate-400 hover:text-slate-700 transition-colors"
+              onClick={() => setShowSecret(v => !v)}
+            >
+              {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-600 block mb-1.5">Seller Access Token *</label>
+          <div className="relative flex items-center">
+            <input
+              type={showToken ? 'text' : 'password'}
+              className="input pr-9 font-mono text-xs"
+              placeholder="500000000000xxxxxx"
+              value={form.darazAccessToken ?? ''}
+              onChange={e => setForm(f => ({ ...f, darazAccessToken: e.target.value }))}
+            />
+            <button
+              type="button"
+              className="absolute right-2 text-slate-400 hover:text-slate-700 transition-colors"
+              onClick={() => setShowToken(v => !v)}
+            >
+              {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-4 rounded-lg p-3 flex items-center gap-2 text-sm text-red-700" style={{ background: '#fee2e2' }}>
+          <XCircle size={14} /> {error}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mt-6">
+        <button className="btn-primary flex items-center gap-2" onClick={handleSave} disabled={saving} style={{ background: '#f85606' }}>
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+          {saving ? 'Connecting…' : 'Save & Connect Daraz'}
+        </button>
+        <span className="text-xs text-slate-400">
+          Daraz Open Platform API credentials.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Daraz: Connected View ────────────────────────────────────────────────────
+
+function DarazConnectedView({
+  integration, onDisconnect, onRefresh
+}: {
+  integration: PlatformIntegration;
+  onDisconnect: () => void;
+  onRefresh: () => void;
+}) {
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const handleDisconnect = async () => {
+    if (!confirm('Are you sure you want to disconnect Daraz integration?')) return;
+    setDisconnecting(true);
+    try {
+      await integrationsApi.deleteConfig('daraz');
+      onDisconnect();
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const regionNames: Record<string, string> = {
+    PK: 'Pakistan (Daraz.pk)',
+    BD: 'Bangladesh (Daraz.com.bd)',
+    LK: 'Sri Lanka (Daraz.lk)',
+    NP: 'Nepal (Daraz.com.np)',
+    MM: 'Myanmar (Shop.com.mm)',
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Status row */}
+      <div className="card p-5 flex items-center gap-4 border-2" style={{ borderColor: '#fed7aa' }}>
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: '#fff7ed' }}>
+          <Package size={22} style={{ color: '#f85606' }} strokeWidth={1.75} />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-800 text-sm">Daraz Marketplace Integration</span>
+            <span className="chip chip-green flex items-center gap-1">
+              <CheckCircle2 size={11} /> Connected
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 mt-1.5 text-xs text-slate-500">
+            <span>Shop: <span className="font-semibold text-slate-700">{integration.credentials?.darazShopName || '—'}</span></span>
+            <span>Seller ID: <span className="font-mono text-slate-700">{integration.credentials?.darazSellerId || '—'}</span></span>
+            <span>Region: <span className="chip chip-blue py-0.5 px-2 text-[11px]">{regionNames[integration.credentials?.darazRegion || 'PK'] || integration.credentials?.darazRegion || 'PK'}</span></span>
+            {integration.connectedAt && (
+              <span>Connected: {new Date(integration.connectedAt).toLocaleDateString()}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="btn-outline flex items-center gap-1.5 text-xs" onClick={onRefresh}>
+            <RefreshCw size={12} /> Refresh
+          </button>
+          <button
+            className="btn-outline flex items-center gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50"
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+          >
+            {disconnecting ? <Loader2 size={12} className="animate-spin" /> : <Link2 size={12} />}
+            Disconnect
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Coming Soon Placeholder ───────────────────────────────────────────────────
 
 function ComingSoon({ icon: Icon, label, color }: { icon: React.ElementType; label: string; color: string }) {
@@ -698,54 +1213,66 @@ function ComingSoon({ icon: Icon, label, color }: { icon: React.ElementType; lab
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CompanyOmnichannelPage() {
-  const [activeTab, setActiveTab] = useState<MainTab>('meta');
-  const [metaSubView, setMetaSubView] = useState<MetaSubView>('setup');
+  const user = getUser();
+  const companyId = user?.companyId;
+  const isEcommerce = user?.businessType === 'ecommerce';
+
+  const [activeTab, setActiveTab] = useState<MainTab>(isEcommerce ? 'shopify' : 'meta');
+  const [subView, setSubView] = useState<SubView>('setup');
   const [integration, setIntegration] = useState<PlatformIntegration | null>(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
-  const user = getUser();
-  const companyId = user?.companyId;
-
-  const loadIntegration = useCallback(async () => {
+  const loadIntegration = useCallback(async (platform: MainTab) => {
+    if (['whatsapp', 'sms', 'email'].includes(platform)) {
+      setIntegration(null);
+      return;
+    }
     setLoading(true);
     try {
-      const res = await integrationsApi.getConfig('meta');
+      const res = await integrationsApi.getConfig(platform as PlatformType);
       if (res.data) {
         setIntegration(res.data);
-        setMetaSubView('connected');
+        setSubView('connected');
       } else {
         setIntegration(null);
-        setMetaSubView('setup');
+        setSubView('setup');
       }
     } catch {
       setIntegration(null);
-      setMetaSubView('setup');
+      setSubView('setup');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'meta') {
-      loadIntegration();
-    }
+    loadIntegration(activeTab);
   }, [activeTab, loadIntegration]);
 
-  const tabs: { key: MainTab; icon: React.ElementType; label: string; desc: string; color: string; bg: string; border: string }[] = [
-    { key: 'meta', icon: Facebook, label: 'Meta', desc: 'Lead Ads & Forms', color: '#1877F2', bg: '#e7f0fd', border: '#bfdbfe' },
-    { key: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', desc: 'Business Messaging', color: '#25D366', bg: '#f0fdf4', border: '#bbf7d0' },
-    { key: 'sms', icon: Phone, label: 'SMS', desc: 'Text Messaging', color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe' },
-    { key: 'email', icon: Mail, label: 'Email', desc: 'Email Marketing', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
-  ];
+  const tabs: { key: MainTab; icon: React.ElementType; label: string; desc: string; color: string; bg: string; border: string }[] = isEcommerce
+    ? [
+        { key: 'shopify', icon: ShoppingBag, label: 'Shopify', desc: 'Store & Orders Sync', color: '#008060', bg: '#ecfdf5', border: '#a7f3d0' },
+        { key: 'daraz', icon: Package, label: 'Daraz', desc: 'Seller Center Sync', color: '#f85606', bg: '#fff7ed', border: '#fed7aa' },
+        { key: 'meta', icon: Facebook, label: 'Meta', desc: 'Lead Ads & Catalog', color: '#1877F2', bg: '#e7f0fd', border: '#bfdbfe' },
+        { key: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', desc: 'Business Messaging', color: '#25D366', bg: '#f0fdf4', border: '#bbf7d0' },
+        { key: 'sms', icon: Phone, label: 'SMS', desc: 'Text & Tracking OTPs', color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe' },
+        { key: 'email', icon: Mail, label: 'Email', desc: 'Order Notifications', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
+      ]
+    : [
+        { key: 'meta', icon: Facebook, label: 'Meta', desc: 'Lead Ads & Forms', color: '#1877F2', bg: '#e7f0fd', border: '#bfdbfe' },
+        { key: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', desc: 'Business Messaging', color: '#25D366', bg: '#f0fdf4', border: '#bbf7d0' },
+        { key: 'sms', icon: Phone, label: 'SMS', desc: 'Text Messaging', color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe' },
+        { key: 'email', icon: Mail, label: 'Email', desc: 'Email Marketing', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
+      ];
 
-  const currentTab = tabs.find(t => t.key === activeTab)!;
+  const currentTab = tabs.find(t => t.key === activeTab) || tabs[0];
 
   return (
     <div>
       <CompanyHeader
         title="Omnichannel"
-        subtitle="Connect and manage your communication channels"
+        subtitle={isEcommerce ? "Connect your eCommerce store, marketplace, and communication channels" : "Connect and manage your communication channels"}
         onMenuClick={() => { }}
       />
 
@@ -753,8 +1280,9 @@ export default function CompanyOmnichannelPage() {
         <div className="flex gap-6">
           {/* ── Left: Channel selector ── */}
           <div className="w-60 flex-shrink-0 space-y-2">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
-              Channels
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1 flex items-center justify-between">
+              <span>Channels</span>
+              {isEcommerce && <span className="chip chip-blue py-0 text-[10px]">eCommerce</span>}
             </div>
             {tabs.map(t => (
               <ChannelTabCard
@@ -783,16 +1311,69 @@ export default function CompanyOmnichannelPage() {
               </div>
             </div>
 
+            {/* Shopify tab */}
+            {activeTab === 'shopify' && (
+              loading ? (
+                <div className="card flex items-center justify-center py-20 text-slate-400">
+                  <Loader2 size={24} className="animate-spin mr-2" /> Loading…
+                </div>
+              ) : subView === 'setup' ? (
+                <ShopifySetupForm
+                  onSaved={() => {
+                    loadIntegration('shopify');
+                    setToast({ msg: 'Shopify store connected successfully!', type: 'success' });
+                  }}
+                />
+              ) : integration ? (
+                <ShopifyConnectedView
+                  integration={integration}
+                  companyId={companyId}
+                  onDisconnect={() => {
+                    setIntegration(null);
+                    setSubView('setup');
+                    setToast({ msg: 'Shopify integration disconnected.', type: 'warning' });
+                  }}
+                  onRefresh={() => loadIntegration('shopify')}
+                />
+              ) : null
+            )}
+
+            {/* Daraz tab */}
+            {activeTab === 'daraz' && (
+              loading ? (
+                <div className="card flex items-center justify-center py-20 text-slate-400">
+                  <Loader2 size={24} className="animate-spin mr-2" /> Loading…
+                </div>
+              ) : subView === 'setup' ? (
+                <DarazSetupForm
+                  onSaved={() => {
+                    loadIntegration('daraz');
+                    setToast({ msg: 'Daraz Seller Center connected successfully!', type: 'success' });
+                  }}
+                />
+              ) : integration ? (
+                <DarazConnectedView
+                  integration={integration}
+                  onDisconnect={() => {
+                    setIntegration(null);
+                    setSubView('setup');
+                    setToast({ msg: 'Daraz integration disconnected.', type: 'warning' });
+                  }}
+                  onRefresh={() => loadIntegration('daraz')}
+                />
+              ) : null
+            )}
+
             {/* Meta tab */}
             {activeTab === 'meta' && (
               loading ? (
                 <div className="card flex items-center justify-center py-20 text-slate-400">
                   <Loader2 size={24} className="animate-spin mr-2" /> Loading…
                 </div>
-              ) : metaSubView === 'setup' ? (
+              ) : subView === 'setup' ? (
                 <MetaSetupForm
                   onSaved={() => {
-                    loadIntegration();
+                    loadIntegration('meta');
                     setToast({ msg: 'Meta integration connected successfully!', type: 'success' });
                   }}
                 />
@@ -802,10 +1383,10 @@ export default function CompanyOmnichannelPage() {
                   companyId={companyId}
                   onDisconnect={() => {
                     setIntegration(null);
-                    setMetaSubView('setup');
+                    setSubView('setup');
                     setToast({ msg: 'Meta integration disconnected.', type: 'warning' });
                   }}
-                  onRefresh={loadIntegration}
+                  onRefresh={() => loadIntegration('meta')}
                   onFormCreated={() => {
                     setToast({ msg: 'Form created successfully on Meta! View it in Lead Management.', type: 'success' });
                   }}
