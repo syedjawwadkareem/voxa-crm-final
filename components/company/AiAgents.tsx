@@ -14,6 +14,7 @@ import type { AgentConfig, AiCall, CreateAgentConfigPayload, AiCallStatus } from
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 const fmt = (d?: string | null) => {
   if (!d) return '—';
   return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -27,13 +28,13 @@ const fmtDuration = (s?: number | null) => {
 // ── Status badge ──────────────────────────────────────────────────────────────
 
 const STATUS_MAP: Record<AiCallStatus, { label: string; cls: string; icon: React.FC<any> }> = {
-  queued:      { label: 'Queued',      cls: 'bg-amber-100    text-amber-700   border-amber-200',    icon: Clock       },
-  ringing:     { label: 'Ringing',     cls: 'bg-blue-100     text-blue-700    border-blue-200',     icon: Phone       },
-  completed:   { label: 'Completed',   cls: 'bg-emerald-100  text-emerald-700 border-emerald-200',  icon: CheckCircle2},
-  no_answer:   { label: 'No Answer',   cls: 'bg-slate-100    text-slate-600   border-slate-200',    icon: PhoneOff    },
-  voicemail:   { label: 'Voicemail',   cls: 'bg-purple-100   text-purple-700  border-purple-200',   icon: Voicemail   },
-  transferred: { label: 'Transferred', cls: 'bg-cyan-100     text-cyan-700    border-cyan-200',     icon: PhoneCall   },
-  failed:      { label: 'Failed',      cls: 'bg-red-100      text-red-700     border-red-200',      icon: AlertCircle },
+  queued: { label: 'Queued', cls: 'bg-amber-100    text-amber-700   border-amber-200', icon: Clock },
+  ringing: { label: 'Ringing', cls: 'bg-blue-100     text-blue-700    border-blue-200', icon: Phone },
+  completed: { label: 'Completed', cls: 'bg-emerald-100  text-emerald-700 border-emerald-200', icon: CheckCircle2 },
+  no_answer: { label: 'No Answer', cls: 'bg-slate-100    text-slate-600   border-slate-200', icon: PhoneOff },
+  voicemail: { label: 'Voicemail', cls: 'bg-purple-100   text-purple-700  border-purple-200', icon: Voicemail },
+  transferred: { label: 'Transferred', cls: 'bg-cyan-100     text-cyan-700    border-cyan-200', icon: PhoneCall },
+  failed: { label: 'Failed', cls: 'bg-red-100      text-red-700     border-red-200', icon: AlertCircle },
 };
 
 function CallStatusBadge({ status }: { status: AiCallStatus }) {
@@ -172,10 +173,10 @@ function ConfigForm({ initial, onClose, onSaved }: { initial?: AgentConfig | nul
           <div className="border border-slate-200 rounded-xl p-4 space-y-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Feature Flags</p>
             {([
-              ['hangup_enabled',             'Agent can hang up',       'Ends call when conversation concludes'],
-              ['dtmf_enabled',               'DTMF keypad tones',       'Agent can press digits'],
-              ['voicemail_detection_enabled','Voicemail detection',      'Detect and handle answering machines'],
-              ['call_recording_enabled',     'Record calls',             'Save call audio as WAV'],
+              ['hangup_enabled', 'Agent can hang up', 'Ends call when conversation concludes'],
+              ['dtmf_enabled', 'DTMF keypad tones', 'Agent can press digits'],
+              ['voicemail_detection_enabled', 'Voicemail detection', 'Detect and handle answering machines'],
+              ['call_recording_enabled', 'Record calls', 'Save call audio as WAV'],
             ] as [keyof CreateAgentConfigPayload, string, string][]).map(([key, label, hint]) => (
               <div key={key} className="flex items-start justify-between gap-3">
                 <div>
@@ -285,12 +286,12 @@ function CallDetailPanel({ call, onClose }: { call: AiCall; onClose: () => void 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
-              ['Status',   <CallStatusBadge key="s" status={call.status} />],
-              ['To',       <span key="t" className="font-mono text-slate-700 text-sm">{call.phone_number}</span>],
-              ['From',     <span key="f" className="font-mono text-slate-700 text-sm">{call.from_number}</span>],
+              ['Status', <CallStatusBadge key="s" status={call.status} />],
+              ['To', <span key="t" className="font-mono text-slate-700 text-sm">{call.phone_number}</span>],
+              ['From', <span key="f" className="font-mono text-slate-700 text-sm">{call.from_number}</span>],
               ['Duration', fmtDuration(call.duration_seconds)],
-              ['Started',  fmt(call.started_at)],
-              ['Ended',    fmt(call.ended_at)],
+              ['Started', fmt(call.started_at)],
+              ['Ended', fmt(call.ended_at)],
             ].map(([label, val], i) => (
               <div key={i} className="bg-slate-50 rounded-lg p-3">
                 <div className="text-xs text-slate-500 mb-1">{label as string}</div>
@@ -324,14 +325,12 @@ function CallDetailPanel({ call, onClose }: { call: AiCall; onClose: () => void 
               <div className="space-y-3">
                 {call.transcript.map((turn, i) => (
                   <div key={i} className={`flex gap-3 ${turn.role === 'agent' ? '' : 'flex-row-reverse'}`}>
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                      turn.role === 'agent' ? 'bg-teal-100 text-teal-700' : 'bg-blue-100 text-blue-700'
-                    }`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${turn.role === 'agent' ? 'bg-teal-100 text-teal-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
                       {turn.role === 'agent' ? 'AI' : 'C'}
                     </div>
-                    <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
-                      turn.role === 'agent' ? 'bg-slate-100 text-slate-800 rounded-tl-sm' : 'bg-blue-500 text-white rounded-tr-sm'
-                    }`}>
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${turn.role === 'agent' ? 'bg-slate-100 text-slate-800 rounded-tl-sm' : 'bg-blue-500 text-white rounded-tr-sm'
+                      }`}>
                       {turn.text}
                       {turn.ts && (
                         <div className="text-xs mt-1 opacity-60">
@@ -356,16 +355,16 @@ function CallDetailPanel({ call, onClose }: { call: AiCall; onClose: () => void 
 
 export function CompanyAiAgents() {
   const [activeTab, setActiveTab] = useState<'configs' | 'calls'>('configs');
-  const [configs, setConfigs]     = useState<AgentConfig[]>([]);
-  const [calls, setCalls]         = useState<AiCall[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [configs, setConfigs] = useState<AgentConfig[]>([]);
+  const [calls, setCalls] = useState<AiCall[]>([]);
+  const [loading, setLoading] = useState(true);
   const [callsLoading, setCallsLoading] = useState(false);
-  const [error, setError]         = useState('');
+  const [error, setError] = useState('');
 
-  const [showForm, setShowForm]         = useState(false);
-  const [editConfig, setEditConfig]     = useState<AgentConfig | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editConfig, setEditConfig] = useState<AgentConfig | null>(null);
   const [triggerConfig, setTriggerConfig] = useState<AgentConfig | null>(null);
-  const [detailCall, setDetailCall]     = useState<AiCall | null>(null);
+  const [detailCall, setDetailCall] = useState<AiCall | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
 
   const loadConfigs = useCallback(async () => {
@@ -426,9 +425,8 @@ export function CompanyAiAgents() {
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {(['configs', 'calls'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}>
             {tab === 'configs' ? <><Settings2 size={14} className="inline mr-1.5" />My Agents</> : <><History size={14} className="inline mr-1.5" />Call History</>}
           </button>
         ))}
@@ -472,10 +470,10 @@ export function CompanyAiAgents() {
                         <div className="font-semibold text-slate-800">{cfg.name}</div>
                         <div className="text-sm text-slate-500 mt-0.5">{cfg.tone} · <span className="font-medium text-purple-600">{cfg.voice}</span></div>
                         <div className="flex gap-1.5 mt-2 flex-wrap">
-                          {cfg.hangup_enabled         && <span className="text-xs bg-teal-50 text-teal-600 border border-teal-100 px-1.5 py-0.5 rounded">Hangup</span>}
-                          {cfg.dtmf_enabled           && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded">DTMF</span>}
+                          {cfg.hangup_enabled && <span className="text-xs bg-teal-50 text-teal-600 border border-teal-100 px-1.5 py-0.5 rounded">Hangup</span>}
+                          {cfg.dtmf_enabled && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded">DTMF</span>}
                           {cfg.call_recording_enabled && <span className="text-xs bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded">Record</span>}
-                          {!cfg.pipeline_config_id    && <span className="text-xs bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded">⚠ Not synced to pipeline</span>}
+                          {!cfg.pipeline_config_id && <span className="text-xs bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded">⚠ Not synced to pipeline</span>}
                         </div>
                       </div>
                     </div>
@@ -546,9 +544,9 @@ export function CompanyAiAgents() {
         </div>
       )}
 
-      {showForm      && <ConfigForm initial={editConfig} onClose={() => { setShowForm(false); setEditConfig(null); }} onSaved={loadConfigs} />}
+      {showForm && <ConfigForm initial={editConfig} onClose={() => { setShowForm(false); setEditConfig(null); }} onSaved={loadConfigs} />}
       {triggerConfig && <TriggerCallModal config={triggerConfig} onClose={() => setTriggerConfig(null)} onTriggered={loadCalls} />}
-      {detailCall    && <CallDetailPanel call={detailCall} onClose={() => setDetailCall(null)} />}
+      {detailCall && <CallDetailPanel call={detailCall} onClose={() => setDetailCall(null)} />}
     </div>
   );
 }
