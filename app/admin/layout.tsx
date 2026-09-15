@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setReady(true);
       return;
     }
-    if (!isAuthenticated() || getPortal() !== 'admin') {
+    if (!isAuthenticated('admin') || getPortal('admin') !== 'admin') {
       router.replace('/admin/login');
     } else {
       setReady(true);

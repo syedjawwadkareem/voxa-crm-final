@@ -54,7 +54,7 @@ export function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
   async function handleLogout() {
     try { await authApi.logout(); } catch { }
-    clearSession();
+    clearSession('customer');
     router.push('/company/login');
   }
 
@@ -76,11 +76,11 @@ export function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; onClose: 
         className={`sidebar w-64 text-slate-200 flex-shrink-0 flex flex-col
           fixed inset-y-0 left-0 z-80 transition-transform duration-250
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:relative lg:translate-x-0 lg:z-auto`}
-        style={{ minHeight: '100vh', background: '#0f1b2d' }}
+          lg:sticky lg:top-0 lg:h-screen lg:max-h-screen lg:translate-x-0 lg:z-30`}
+        style={{ height: '100vh', maxHeight: '100vh', background: '#0f1b2d' }}
       >
         {/* Logo */}
-        <div className="px-5 py-5 flex items-center gap-2 border-b border-white/5">
+        <div className="px-5 py-5 flex-shrink-0 flex items-center gap-2 border-b border-white/5">
           <svg className="w-8 h-8 flex-shrink-0" viewBox="0 0 40 40" fill="none">
             <path
               d="M6 12 L10 28 L14 12 L18 28 L22 12 L26 28 L30 12 L34 28"
@@ -134,7 +134,7 @@ export function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; onClose: 
         </nav>
 
         {/* User footer */}
-        <div className="p-4 border-t border-white/5">
+        <div className="p-4 flex-shrink-0 border-t border-white/5">
           <div className="flex items-center gap-2 mb-3">
             <span
               className="avatar"

@@ -26,7 +26,7 @@ export default function AdminLoginPage() {
 
   // Redirect if already logged in as admin
   useEffect(() => {
-    if (isAuthenticated() && getPortal() === 'admin') {
+    if (isAuthenticated('admin') && getPortal('admin') === 'admin') {
       router.replace('/admin/dashboard');
     }
   }, [router]);

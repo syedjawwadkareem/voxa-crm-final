@@ -40,7 +40,7 @@ const ALL_CHANNELS: ChannelDef[] = [
   { key: 'daraz',    label: 'Daraz',     category: 'eCommerce', color: '#f85606', bg: '#fff7ed', border: '#fed7aa', icon: Package,       description: 'Seller Center marketplace sync' },
   { key: 'meta',     label: 'Meta',      category: 'Marketing', color: '#1877F2', bg: '#e7f0fd', border: '#bfdbfe', icon: MessageSquare, description: 'Lead Ads & Webhook leads' },
   { key: 'whatsapp', label: 'WhatsApp',  category: 'Messaging', color: '#25D366', bg: '#f0fdf4', border: '#bbf7d0', icon: MessageSquare, description: 'Cloud API customer messaging' },
-  { key: 'sms',      label: 'SMS',       category: 'Telecom',   color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', icon: Phone,         description: 'Transactional SMS & OTPs' },
+  { key: 'sms',      label: 'SMS',       category: 'Telecom',   color: '#0f8f7a', bg: '#f0fdf9', border: '#99f6e4', icon: Phone,         description: 'Transactional SMS & OTPs' },
   { key: 'email',    label: 'Email',     category: 'Marketing', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', icon: Mail,          description: 'SMTP & marketing notifications' },
 ];
 

@@ -205,7 +205,7 @@ export function CampaignBuilder({ onSuccess, audioList: propAudioList }: Campaig
                 onClick={fetchAudioFiles}
                 disabled={audioLoading}
                 title="Refresh audio list"
-                className="flex items-center justify-center w-10 h-10 shrink-0 rounded-lg border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center w-10 h-10 shrink-0 rounded-lg border border-slate-200 text-slate-500 hover:text-teal-600 hover:border-teal-300 hover:bg-teal-50 transition-colors disabled:opacity-50"
               >
                 {audioLoading
                   ? <Loader2 size={15} className="animate-spin" />
@@ -252,7 +252,7 @@ export function CampaignBuilder({ onSuccess, audioList: propAudioList }: Campaig
             Contact List (CSV) <span className="text-red-500">*</span>
           </label>
           <div
-            className="relative flex items-center gap-3 border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+            className="relative flex items-center gap-3 border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 cursor-pointer hover:border-teal-400 hover:bg-teal-50/30 transition-colors"
             onClick={() => csvInputRef.current?.click()}
           >
             <Upload size={18} className="text-slate-400 shrink-0" />
@@ -290,17 +290,17 @@ export function CampaignBuilder({ onSuccess, audioList: propAudioList }: Campaig
 
         {/* ── DTMF Options Section (visible only when type = dtmf) ──────────── */}
         {campaignType === 'dtmf' && (
-          <div className="mb-6 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
+          <div className="mb-6 rounded-xl border border-teal-100 bg-teal-50/40 p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-sm font-bold text-indigo-800">DTMF Options</h3>
-                <p className="text-xs text-indigo-500">Configure keypress responses for this campaign.</p>
+                <h3 className="text-sm font-bold text-teal-800">DTMF Options</h3>
+                <p className="text-xs text-teal-600">Configure keypress responses for this campaign.</p>
               </div>
               <button
                 type="button"
                 id="add-dtmf-row"
                 onClick={addDtmfRow}
-                className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 border border-indigo-300 rounded-lg px-3 py-1.5 hover:bg-indigo-100 transition-colors"
+                className="flex items-center gap-1.5 text-xs font-semibold text-teal-700 border border-teal-300 rounded-lg px-3 py-1.5 hover:bg-teal-100 transition-colors"
               >
                 <Plus size={13} /> Add Option
               </button>

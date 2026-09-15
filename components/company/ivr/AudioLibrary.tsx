@@ -92,7 +92,7 @@ export function AudioLibrary({ onAudioListChange }: AudioLibraryProps) {
         <div className="flex items-center justify-between mb-5 border-b border-slate-100 pb-4">
           <div>
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <Upload size={18} className="text-indigo-600" />
+              <Upload size={18} className="text-teal-600" />
               Upload Audio File
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
@@ -128,8 +128,8 @@ export function AudioLibrary({ onAudioListChange }: AudioLibraryProps) {
             ${selectedFile
               ? 'border-emerald-400 bg-emerald-50/40 cursor-default'
               : dragOver
-                ? 'border-indigo-500 bg-indigo-50/60 cursor-copy scale-[1.01]'
-                : 'border-slate-200 bg-slate-50/50 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30'
+                ? 'border-teal-500 bg-teal-50/60 cursor-copy scale-[1.01]'
+                : 'border-slate-200 bg-slate-50/50 cursor-pointer hover:border-teal-400 hover:bg-teal-50/30'
             }`}
         >
           {selectedFile ? (
@@ -154,8 +154,8 @@ export function AudioLibrary({ onAudioListChange }: AudioLibraryProps) {
             </>
           ) : (
             <>
-              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-indigo-100">
-                <Music size={28} className="text-indigo-500" />
+              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-teal-100">
+                <Music size={28} className="text-teal-600" />
               </div>
               <div className="text-center">
                 <p className="font-semibold text-slate-600 text-sm">Drag &amp; drop your audio file here</p>
@@ -194,7 +194,7 @@ export function AudioLibrary({ onAudioListChange }: AudioLibraryProps) {
         <div className="flex items-center justify-between mb-5 border-b border-slate-100 pb-4">
           <div>
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <FileAudio size={18} className="text-indigo-600" />
+              <FileAudio size={18} className="text-teal-600" />
               Audio Library
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
@@ -209,7 +209,7 @@ export function AudioLibrary({ onAudioListChange }: AudioLibraryProps) {
             onClick={fetchAudioList}
             disabled={loading}
             title="Refresh audio list"
-            className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1.5 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs font-semibold text-teal-600 border border-teal-200 rounded-lg px-3 py-1.5 hover:bg-teal-50 transition-colors disabled:opacity-50"
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             Refresh
@@ -240,16 +240,16 @@ export function AudioLibrary({ onAudioListChange }: AudioLibraryProps) {
               </thead>
               <tbody>
                 {audioList.map((audio, idx) => (
-                  <tr key={`${audio.id}-${idx}`} className="border-b border-slate-50 hover:bg-indigo-50/30 transition-colors">
+                  <tr key={`${audio.id}-${idx}`} className="border-b border-slate-50 hover:bg-teal-50/30 transition-colors">
                     <td className="py-3 px-4 text-slate-400 text-xs">{idx + 1}</td>
                     <td className="py-3 px-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-mono font-semibold">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 text-xs font-mono font-semibold">
                         {audio.id}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-slate-700 font-medium">
                       <span className="flex items-center gap-2">
-                        <FileAudio size={14} className="text-indigo-400 shrink-0" />
+                        <FileAudio size={14} className="text-teal-500 shrink-0" />
                         {audio.original_name}
                       </span>
                     </td>

@@ -112,7 +112,7 @@ export default function AdminCompaniesPage() {
     setCreateError('');
     try {
       const res = await companiesApi.getNextTenantId();
-      const nextId = res.data?.nextTenantId || 'Voxa-tenant-001';
+      const nextId = res.data?.nextTenantId || 'T-0001';
       setCreateForm(prev => ({
         ...EMPTY_FORM,
         planId: plans.length > 0 ? plans[0]._id : prev.planId,
@@ -122,7 +122,7 @@ export default function AdminCompaniesPage() {
       setCreateForm(prev => ({
         ...EMPTY_FORM,
         planId: plans.length > 0 ? plans[0]._id : prev.planId,
-        tenant: { ...EMPTY_FORM.tenant, tenant_id: 'Voxa-tenant-001' }
+        tenant: { ...EMPTY_FORM.tenant, tenant_id: 'T-0001' }
       }));
     }
   };
@@ -408,7 +408,7 @@ export default function AdminCompaniesPage() {
                     <input
                       className="input bg-slate-100 font-mono text-slate-700 cursor-not-allowed pr-14"
                       readOnly
-                      value={createForm.tenant.tenant_id || 'Voxa-tenant-001'}
+                      value={createForm.tenant.tenant_id || 'T-0001'}
                     />
                     {/* <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">
                       Auto
@@ -528,7 +528,7 @@ export default function AdminCompaniesPage() {
           </div>
           <div>
             <label className="text-xs font-medium">Tenant ID *</label>
-            <input className="input mt-1" required value={tenantForm.tenant_id} onChange={(e) => setTenantForm({ ...tenantForm, tenant_id: e.target.value })} placeholder="NEW-TENANT-123" />
+            <input className="input mt-1" required value={tenantForm.tenant_id} onChange={(e) => setTenantForm({ ...tenantForm, tenant_id: e.target.value })} placeholder="T-0001" />
           </div>
           <div>
             <label className="text-xs font-medium">Contact Name *</label>

@@ -88,9 +88,11 @@ body {
   color: #854d0e;
 }
 
+.chip-teal,
+.chip-indigo,
 .chip-purple {
-  background: #ede9fe;
-  color: #5b21b6;
+  background: #ccfbf1;
+  color: #0f766e;
 }
 
 .btn-primary {
@@ -679,4 +681,31 @@ svg.i {
   .main-topbar {
     display: none;
   }
+}
+
+/* ── Custom Sleek Scrollbars ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+.sidebar nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }

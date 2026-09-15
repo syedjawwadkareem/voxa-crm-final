@@ -33,7 +33,7 @@ const STATUS_MAP: Record<AiCallStatus, { label: string; cls: string; icon: React
   ringing: { label: 'Ringing', cls: 'bg-blue-100     text-blue-700    border-blue-200', icon: Phone },
   completed: { label: 'Completed', cls: 'bg-emerald-100  text-emerald-700 border-emerald-200', icon: CheckCircle2 },
   no_answer: { label: 'No Answer', cls: 'bg-slate-100    text-slate-600   border-slate-200', icon: PhoneOff },
-  voicemail: { label: 'Voicemail', cls: 'bg-purple-100   text-purple-700  border-purple-200', icon: Voicemail },
+  voicemail: { label: 'Voicemail', cls: 'bg-teal-100   text-teal-700  border-teal-200', icon: Voicemail },
   transferred: { label: 'Transferred', cls: 'bg-cyan-100     text-cyan-700    border-cyan-200', icon: PhoneCall },
   failed: { label: 'Failed', cls: 'bg-red-100      text-red-700     border-red-200', icon: AlertCircle },
 };
@@ -478,7 +478,7 @@ export function CompanyAiAgents() {
                       </div>
                       <div className="min-w-0">
                         <div className="font-semibold text-slate-800">{cfg.name}</div>
-                        <div className="text-sm text-slate-500 mt-0.5">{cfg.tone} · <span className="font-medium text-purple-600">{cfg.voice}</span></div>
+                        <div className="text-sm text-slate-500 mt-0.5">{cfg.tone} · <span className="font-medium text-teal-600">{cfg.voice}</span></div>
                         <div className="flex gap-1.5 mt-2 flex-wrap">
                           {cfg.hangup_enabled && <span className="text-xs bg-teal-50 text-teal-600 border border-teal-100 px-1.5 py-0.5 rounded">Hangup</span>}
                           {cfg.dtmf_enabled && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded">DTMF</span>}

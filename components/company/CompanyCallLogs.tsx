@@ -370,7 +370,7 @@ export function CompanyCallLogs() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white relative" style={{ fontFamily: 'Inter, sans-serif', minHeight: '100%' }}>
+    <div className="flex flex-col h-full bg-white relative overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }}>
 
       {/* Toast Alert */}
       {toastMessage && (
@@ -388,7 +388,7 @@ export function CompanyCallLogs() {
       )}
 
       {/* ── Filter Bar ─────────────────────────────────────────────────────── */}
-      <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap gap-3 items-end relative z-20">
+      <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap gap-3 items-end relative z-20 flex-shrink-0">
 
         {/* Date Filter */}
         <div className="flex gap-2">
@@ -531,7 +531,7 @@ export function CompanyCallLogs() {
 
       {/* ── Bulk Action Bar ────────────────────────────────────────────────── */}
       {someChecked && (
-        <div className="px-6 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-3">
+        <div className="px-6 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-3 flex-shrink-0">
           <span className="text-xs font-semibold text-blue-700">{selectedIds.size} selected</span>
           <button onClick={bulkArchive}
             className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors">
@@ -544,7 +544,7 @@ export function CompanyCallLogs() {
       )}
 
       {/* ── Table ──────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto border-t border-slate-100">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 gap-3">
             <RefreshCw size={28} className="animate-spin text-blue-500" />
@@ -557,7 +557,7 @@ export function CompanyCallLogs() {
             </div>
             <p className="text-sm font-semibold text-slate-700 mb-1">Connection Error</p>
             <p className="text-xs text-red-500 max-w-sm">{error}</p>
-            <button onClick={refresh} className="mt-4 px-4 py-1.5 text-xs font-semibold text-white rounded-lg" style={{ background: '#3b82f6' }}>
+            <button onClick={refresh} className="mt-4 px-4 py-1.5 text-xs font-semibold text-white rounded-lg" style={{ background: 'linear-gradient(135deg, #0f8f7a, #22c1a5)' }}>
               Retry
             </button>
           </div>
@@ -570,14 +570,14 @@ export function CompanyCallLogs() {
             <p className="text-xs text-slate-400 mt-1">Try adjusting your filters</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
+          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead className="sticky top-0 z-10 bg-slate-50 shadow-2xs">
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                 <th style={TH}>
                   <input type="checkbox" checked={allChecked}
                     ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
                     onChange={toggleAll}
-                    style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#3b82f6' }} />
+                    style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#0f8f7a' }} />
                 </th>
                 <th style={TH}>Date &amp; Time ↑</th>
                 {isCompanyAdmin && <th style={TH}>User / Agent</th>}
@@ -596,14 +596,14 @@ export function CompanyCallLogs() {
                 const rawStatus = (log.status || '').toUpperCase();
                 const isArc = archived.has(log.id);
                 const isSel = selectedIds.has(log.id);
-                const rowBg = isSel ? '#eff6ff' : idx % 2 === 0 ? 'white' : '#fafbfc';
+                const rowBg = isSel ? '#f0fdf9' : idx % 2 === 0 ? 'white' : '#fafbfc';
                 const isCheckingThis = checkingAudioId === log.id;
 
                 return (
                   <tr key={log.id} style={{ background: rowBg, borderBottom: '1px solid #f1f5f9' }}>
                     <td style={TD}>
                       <input type="checkbox" checked={isSel} onChange={() => toggleSelect(log.id)}
-                        style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#3b82f6' }} />
+                        style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#0f8f7a' }} />
                     </td>
                     <td style={TD}>
                       <span style={{ color: '#334155', fontWeight: 500, fontSize: 12 }}>
@@ -623,22 +623,17 @@ export function CompanyCallLogs() {
                       </td>
                     )}
                     <td style={TD}>
-                      <div className="flex flex-col">
-                        <span style={{ color: '#2563eb', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>
-                          {log.uniqueid || log.id}
-                        </span>
-                        <span style={{ color: '#94a3b8', fontSize: 10 }}>
-                          Ext: {log.extension}
-                        </span>
-                      </div>
+                      <span style={{ color: '#0f766e', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>
+                        {log.uniqueid || log.id}
+                      </span>
                     </td>
                     <td style={TD}>
                       <div className="flex flex-col">
-                        <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12 }}>
+                        <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12, fontWeight: 500 }}>
                           {direction === 'out' ? log.destination : log.callerid}
                         </span>
                         {log.leadName && (
-                          <span className="inline-flex items-center text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 mt-0.5 self-start">
+                          <span className="inline-flex items-center text-[10px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 mt-0.5 self-start">
                             {log.leadName}
                           </span>
                         )}
@@ -682,7 +677,7 @@ export function CompanyCallLogs() {
                           id={`co-listen-${log.id}`}
                           icon={isCheckingThis ? <RefreshCw size={11} className="animate-spin" /> : <Headphones size={11} />}
                           label={isCheckingThis ? 'Loading…' : 'Listen'}
-                          color="#8b5cf6"
+                          color="#0f8f7a"
                           disabled={isCheckingThis}
                           onClick={() => handleListenClick(log)}
                         />

@@ -255,10 +255,10 @@ export default function AdminPlansPage() {
                     <tr key={p._id}>
                       <td className="font-medium text-slate-800">
                         {p.name}
-                        {p.is_custom && <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] uppercase font-bold tracking-wider">Custom</span>}
+                        {p.is_custom && <span className="ml-2 px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 text-[10px] uppercase font-bold tracking-wider">Custom</span>}
                       </td>
                       <td>
-                        <span className={`chip ${p.type === 'prepaid' ? 'chip-blue' : 'chip-indigo'}`}>{p.type}</span>
+                        <span className={`chip ${p.type === 'prepaid' ? 'chip-blue' : 'chip-teal'}`}>{p.type}</span>
                       </td>
                       <td className="capitalize text-slate-600">{p.duration_type}</td>
                       <td className="font-mono">${p.cost}</td>

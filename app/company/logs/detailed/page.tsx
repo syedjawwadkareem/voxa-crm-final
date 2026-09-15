@@ -488,8 +488,8 @@ function DetailedViewContent() {
       );
     }
     return (
-      <span key={src} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
-        <Layers size={11} className="text-purple-600" /> {src.toUpperCase()}
+      <span key={src} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs">
+        <Layers size={11} className="text-teal-600" /> {src.toUpperCase()}
       </span>
     );
   };
@@ -532,7 +532,7 @@ function DetailedViewContent() {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full pl-3 pr-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    className="w-full pl-3 pr-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 focus:outline-none"
                     placeholder="mm/dd/yyyy"
                   />
                 </div>
@@ -542,7 +542,7 @@ function DetailedViewContent() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full pl-3 pr-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    className="w-full pl-3 pr-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 focus:outline-none"
                     placeholder="mm/dd/yyyy"
                   />
                 </div>
@@ -557,7 +557,7 @@ function DetailedViewContent() {
                     value={extensionFilter}
                     onChange={(e) => setExtensionFilter(e.target.value)}
                     placeholder="Extension"
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 focus:outline-none"
                   />
                 </div>
                 <div className="relative">
@@ -567,7 +567,7 @@ function DetailedViewContent() {
                     value={destinationFilter}
                     onChange={(e) => setDestinationFilter(e.target.value)}
                     placeholder="Destination / Phone"
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 focus:outline-none"
                   />
                 </div>
               </div>
@@ -582,9 +582,10 @@ function DetailedViewContent() {
                       onClick={() => setDispositionFilter(tab)}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                         isActive
-                          ? 'bg-purple-600 text-white shadow-sm'
+                          ? 'bg-teal-600 text-white shadow-sm'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
+                      style={isActive ? { background: '#0f8f7a' } : undefined}
                     >
                       {tab}
                     </button>
@@ -597,7 +598,7 @@ function DetailedViewContent() {
             <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
               {loading ? (
                 <div className="p-8 text-center text-slate-400 text-sm flex flex-col items-center gap-2">
-                  <RefreshCw className="animate-spin text-purple-600" size={24} />
+                  <RefreshCw className="animate-spin text-teal-600" size={24} />
                   <span>Loading call records...</span>
                 </div>
               ) : error ? (
@@ -628,12 +629,12 @@ function DetailedViewContent() {
                       onClick={() => setSelectedCall(log)}
                       className={`p-4 cursor-pointer transition-all flex items-start gap-3.5 ${
                         isSelected
-                          ? 'bg-purple-50/80 border-l-4 border-purple-600 shadow-inner'
+                          ? 'bg-teal-50/80 border-l-4 border-teal-600 shadow-inner'
                           : 'hover:bg-slate-50'
                       }`}
                     >
                       {/* Avatar Circle */}
-                      <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold text-sm flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <div className="w-10 h-10 rounded-full text-white font-bold text-sm flex items-center justify-center flex-shrink-0 shadow-sm" style={{ background: '#0f8f7a' }}>
                         {initialLetter}
                       </div>
 
@@ -675,7 +676,7 @@ function DetailedViewContent() {
                               <span>•</span>
                             </>
                           )}
-                          <span className="inline-flex items-center gap-0.5 text-purple-700 font-medium">
+                          <span className="inline-flex items-center gap-0.5 text-teal-700 font-medium">
                             <ArrowUpRight size={12} /> Outgoing
                           </span>
                           <span>•</span>
@@ -703,7 +704,7 @@ function DetailedViewContent() {
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                     <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-purple-700 to-indigo-600 text-white font-bold text-lg flex items-center justify-center shadow-md">
+                      <div className="w-12 h-12 rounded-full text-white font-bold text-lg flex items-center justify-center shadow-md" style={{ background: 'linear-gradient(135deg, #0f8f7a, #22c1a5)' }}>
                         {selectedCallLeadInfo?.displayName
                           ? selectedCallLeadInfo.displayName.charAt(0).toUpperCase()
                           : (selectedCall.destination || selectedCall.callerid || 'C').charAt(0).toUpperCase()}
@@ -743,13 +744,13 @@ function DetailedViewContent() {
                   </div>
 
                   {/* Summary Card Grid */}
-                  <div className="bg-purple-50/40 rounded-xl p-4 border border-purple-100/60 space-y-4">
+                  <div className="bg-teal-50/30 rounded-xl p-4 border border-teal-100/60 space-y-4">
                     {/* Top Meta Bar */}
-                    <div className="flex items-center gap-2 text-xs flex-wrap pb-2 border-b border-purple-100">
-                      <span className="font-semibold text-purple-900">
+                    <div className="flex items-center gap-2 text-xs flex-wrap pb-2 border-b border-teal-100">
+                      <span className="font-semibold text-teal-950">
                         {formatDate(selectedCall.start_time)}
                       </span>
-                      <span className="text-purple-300">|</span>
+                      <span className="text-teal-300">|</span>
                       <span
                         className="px-2 py-0.5 rounded text-[11px] font-bold"
                         style={{
@@ -759,11 +760,11 @@ function DetailedViewContent() {
                       >
                         {getBadgeStyle(selectedCall.status).label}
                       </span>
-                      <span className="text-purple-300">|</span>
-                      <span className="text-purple-700 font-medium inline-flex items-center gap-1">
+                      <span className="text-teal-300">|</span>
+                      <span className="text-teal-700 font-medium inline-flex items-center gap-1">
                         <ArrowUpRight size={13} /> Outgoing
                       </span>
-                      <span className="text-purple-300">|</span>
+                      <span className="text-teal-300">|</span>
                       <span className="text-slate-600 font-medium">
                         Ext {selectedCall.extension || '1002'}
                       </span>
@@ -849,7 +850,7 @@ function DetailedViewContent() {
                 {/* 2. Contact & Omnichannel Identity Resolution Card */}
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2 text-purple-700 font-bold text-xs uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-teal-700 font-bold text-xs uppercase tracking-wider">
                       <User size={16} />
                       <span>Contact & Omnichannel Identity</span>
                     </div>
@@ -865,7 +866,7 @@ function DetailedViewContent() {
                               [selectedCallKey]: e.target.value
                             }));
                           }}
-                          className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400"
                         >
                           {selectedCallLeadInfo.names.map((name) => (
                             <option key={name} value={name}>
@@ -946,7 +947,7 @@ function DetailedViewContent() {
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                      <Volume2 size={16} className="text-purple-600" />
+                      <Volume2 size={16} className="text-teal-600" />
                       <span>Call Audio Recording</span>
                     </div>
 
@@ -956,7 +957,7 @@ function DetailedViewContent() {
                         download={`call_recording_${selectedCall.id}.wav`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors border border-teal-200/60"
                       >
                         <Download size={13} /> Download WAV
                       </a>
@@ -965,7 +966,7 @@ function DetailedViewContent() {
 
                   {checkingRecording ? (
                     <div className="p-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-                      <RefreshCw size={14} className="animate-spin text-purple-600" />
+                      <RefreshCw size={14} className="animate-spin text-teal-600" />
                       <span>Checking call recording availability...</span>
                     </div>
                   ) : (
@@ -997,7 +998,8 @@ function DetailedViewContent() {
                         {/* Play/Pause Button */}
                         <button
                           onClick={togglePlay}
-                          className="w-11 h-11 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center shadow-md transition-transform active:scale-95 flex-shrink-0"
+                          className="w-11 h-11 rounded-full text-white flex items-center justify-center shadow-md transition-transform active:scale-95 flex-shrink-0"
+                          style={{ background: 'linear-gradient(135deg, #0f8f7a, #22c1a5)' }}
                           title={isPlaying ? 'Pause' : 'Play Recording'}
                         >
                           {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
@@ -1012,7 +1014,7 @@ function DetailedViewContent() {
                             step={0.1}
                             value={currentTime}
                             onChange={handleSeek}
-                            className="w-full accent-purple-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+                            className="w-full accent-teal-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
                           />
                           <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
                             <span>{formatSecs(currentTime)}</span>
@@ -1023,7 +1025,7 @@ function DetailedViewContent() {
                         {/* Speed Selector */}
                         <button
                           onClick={cyclePlaybackRate}
-                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 transition-colors"
+                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 transition-colors"
                           title="Change Playback Speed"
                         >
                           {playbackRate}x
@@ -1044,14 +1046,14 @@ function DetailedViewContent() {
                             step={0.05}
                             value={isMuted ? 0 : volume}
                             onChange={handleVolumeChange}
-                            className="w-16 accent-purple-500 cursor-pointer h-1 bg-slate-700 rounded-lg hidden sm:block"
+                            className="w-16 accent-teal-500 cursor-pointer h-1 bg-slate-700 rounded-lg hidden sm:block"
                           />
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
                         <span className="flex items-center gap-1 text-slate-300">
-                          <CheckCircle2 size={12} className="text-emerald-400" />
+                          <CheckCircle2 size={12} className="text-teal-400" />
                           Audio Stream Ready
                         </span>
                         <span className="font-mono text-slate-500">
@@ -1066,7 +1068,7 @@ function DetailedViewContent() {
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                      <Sparkles size={16} className="text-indigo-600" />
+                      <Sparkles size={16} className="text-teal-600" />
                       <span>AI Call Intelligence & Transcription</span>
                     </div>
 
@@ -1074,7 +1076,8 @@ function DetailedViewContent() {
                       <button
                         onClick={handleTriggerAnalysis}
                         disabled={isAnalyzing}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 px-3.5 py-1.5 rounded-lg shadow-sm transition-all"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-white shadow-sm transition-all disabled:opacity-50 px-3.5 py-1.5 rounded-lg"
+                        style={{ background: 'linear-gradient(135deg, #0f8f7a, #22c1a5)' }}
                       >
                         <Sparkles size={13} className={isAnalyzing ? 'animate-spin' : ''} />
                         {isAnalyzing ? 'Analyzing with AI...' : analysis ? 'Re-Analyze Call' : 'Generate AI Summary'}
@@ -1089,7 +1092,7 @@ function DetailedViewContent() {
                         onClick={() => setActiveAnalysisTab('summary')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           activeAnalysisTab === 'summary'
-                            ? 'bg-purple-100 text-purple-800 shadow-2xs'
+                            ? 'bg-teal-100 text-teal-800 shadow-2xs'
                             : 'text-slate-600 hover:bg-slate-100'
                         }`}
                       >
@@ -1099,7 +1102,7 @@ function DetailedViewContent() {
                         onClick={() => setActiveAnalysisTab('transcript')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           activeAnalysisTab === 'transcript'
-                            ? 'bg-purple-100 text-purple-800 shadow-2xs'
+                            ? 'bg-teal-100 text-teal-800 shadow-2xs'
                             : 'text-slate-600 hover:bg-slate-100'
                         }`}
                       >
@@ -1111,7 +1114,7 @@ function DetailedViewContent() {
                   {/* Analysis Content */}
                   {analysisLoading ? (
                     <div className="p-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-                      <RefreshCw size={14} className="animate-spin text-indigo-600" />
+                      <RefreshCw size={14} className="animate-spin text-teal-600" />
                       <span>Checking AI analysis records...</span>
                     </div>
                   ) : analysis ? (
@@ -1123,7 +1126,7 @@ function DetailedViewContent() {
                             <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">
                               CALL OUTCOME
                             </span>
-                            <span className="font-bold text-xs capitalize text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md inline-block">
+                            <span className="font-bold text-xs capitalize text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md inline-block">
                               {analysis.summary?.outcome?.replace(/_/g, ' ') || 'Completed'}
                             </span>
                           </div>
@@ -1157,15 +1160,15 @@ function DetailedViewContent() {
 
                         {/* Key Discussion Points */}
                         {analysis.summary?.key_points && analysis.summary.key_points.length > 0 && (
-                          <div className="p-4 bg-indigo-50/40 rounded-xl border border-indigo-100/70 space-y-2">
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950 uppercase tracking-wider">
-                              <ListChecks size={14} className="text-indigo-600" />
+                          <div className="p-4 bg-teal-50/40 rounded-xl border border-teal-100/70 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-teal-950 uppercase tracking-wider">
+                              <ListChecks size={14} className="text-teal-600" />
                               <span>Key Discussion Points</span>
                             </div>
                             <ul className="space-y-1.5 text-xs text-slate-700 pl-2">
                               {analysis.summary.key_points.map((pt, idx) => (
                                 <li key={idx} className="flex items-start gap-2">
-                                  <span className="text-indigo-600 font-bold">•</span>
+                                  <span className="text-teal-600 font-bold">•</span>
                                   <span>{pt}</span>
                                 </li>
                               ))}
@@ -1209,12 +1212,12 @@ function DetailedViewContent() {
                                 key={idx}
                                 className={`p-3 rounded-xl border text-xs space-y-1 ${
                                   isAgent
-                                    ? 'bg-purple-50/60 border-purple-100'
+                                    ? 'bg-teal-50/60 border-teal-100'
                                     : 'bg-slate-50 border-slate-100'
                                 }`}
                               >
                                 <div className="flex items-center justify-between">
-                                  <span className={`font-bold flex items-center gap-1 ${isAgent ? 'text-purple-700' : 'text-slate-800'}`}>
+                                  <span className={`font-bold flex items-center gap-1 ${isAgent ? 'text-teal-700' : 'text-slate-800'}`}>
                                     {isAgent ? <Bot size={13} /> : <User size={13} />}
                                     {seg.speaker || (isAgent ? 'Agent / AI' : 'Customer')}
                                   </span>
@@ -1240,8 +1243,8 @@ function DetailedViewContent() {
                       </div>
                     )
                   ) : (
-                    <div className="p-6 bg-indigo-50/30 rounded-xl border border-indigo-100/60 text-center text-slate-600 text-xs flex flex-col items-center gap-2">
-                      <Bot size={24} className="text-indigo-500" />
+                    <div className="p-6 bg-teal-50/30 rounded-xl border border-teal-100/60 text-center text-slate-600 text-xs flex flex-col items-center gap-2">
+                      <Bot size={24} className="text-teal-500" />
                       <div className="max-w-md">
                         <span className="font-bold text-slate-800 block mb-1">
                           No AI Summary Generated Yet
@@ -1258,13 +1261,13 @@ function DetailedViewContent() {
                 <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                      <MessageSquare size={16} className="text-purple-600" />
+                      <MessageSquare size={16} className="text-teal-600" />
                       <span>Call Notes & Manual Observations</span>
                     </div>
 
                     <button
                       onClick={() => setShowAddNoteModal(true)}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors border border-teal-200/60"
                     >
                       <Plus size={14} /> Add Note
                     </button>
@@ -1273,7 +1276,7 @@ function DetailedViewContent() {
                   {/* Notes List */}
                   {notesLoading ? (
                     <div className="p-4 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-                      <RefreshCw size={14} className="animate-spin text-purple-600" />
+                      <RefreshCw size={14} className="animate-spin text-teal-600" />
                       <span>Loading notes...</span>
                     </div>
                   ) : notes.length === 0 ? (
@@ -1317,7 +1320,7 @@ function DetailedViewContent() {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4 border border-slate-100">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <MessageSquare size={18} className="text-purple-600" />
+                <MessageSquare size={18} className="text-teal-600" />
                 Add Call Note
               </h3>
               <button
@@ -1339,7 +1342,7 @@ function DetailedViewContent() {
                   value={newNoteText}
                   onChange={(e) => setNewNoteText(e.target.value)}
                   placeholder="Enter observation notes regarding this call..."
-                  className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-purple-500 focus:bg-white focus:outline-none"
+                  className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 focus:bg-white focus:outline-none"
                 />
               </div>
 
@@ -1354,7 +1357,8 @@ function DetailedViewContent() {
                 <button
                   type="submit"
                   disabled={submittingNote || !newNoteText.trim()}
-                  className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl shadow-sm transition-all"
+                  className="px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50 rounded-xl shadow-sm transition-all"
+                  style={{ background: 'linear-gradient(135deg, #0f8f7a, #22c1a5)' }}
                 >
                   {submittingNote ? 'Saving...' : 'Save Note'}
                 </button>

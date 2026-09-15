@@ -22,7 +22,7 @@ export default function CompanyLayout({ children }: { children: React.ReactNode 
       setReady(true);
       return;
     }
-    if (!isAuthenticated() || getPortal() !== 'customer') {
+    if (!isAuthenticated('customer') || getPortal('customer') !== 'customer') {
       router.replace('/company/login');
     } else {
       setReady(true);

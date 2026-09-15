@@ -105,8 +105,8 @@ export function IVRHistory() {
         </div>
         <div className="w-px bg-blue-200"></div>
         <div>
-          <div className="text-xs text-indigo-600 font-semibold mb-1 uppercase tracking-wide">Total Talk Time</div>
-          <div className="text-2xl font-bold text-indigo-900">00:06:45</div>
+          <div className="text-xs text-teal-600 font-semibold mb-1 uppercase tracking-wide">Total Talk Time</div>
+          <div className="text-2xl font-bold text-teal-900">00:06:45</div>
         </div>
       </div>
 

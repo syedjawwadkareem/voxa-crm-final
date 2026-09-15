@@ -34,7 +34,7 @@ const STATUS_MAP: Record<AiCallStatus, { label: string; cls: string; icon: React
   ringing:     { label: 'Ringing',     cls: 'bg-blue-100     text-blue-700    border-blue-200',     icon: Phone       },
   completed:   { label: 'Completed',   cls: 'bg-emerald-100  text-emerald-700 border-emerald-200',  icon: CheckCircle2},
   no_answer:   { label: 'No Answer',   cls: 'bg-slate-100    text-slate-600   border-slate-200',    icon: PhoneOff    },
-  voicemail:   { label: 'Voicemail',   cls: 'bg-purple-100   text-purple-700  border-purple-200',   icon: Voicemail   },
+  voicemail:   { label: 'Voicemail',   cls: 'bg-teal-100     text-teal-700    border-teal-200',     icon: Voicemail   },
   transferred: { label: 'Transferred', cls: 'bg-cyan-100     text-cyan-700    border-cyan-200',     icon: PhoneCall   },
   failed:      { label: 'Failed',      cls: 'bg-red-100      text-red-700     border-red-200',      icon: AlertCircle },
 };
@@ -616,7 +616,7 @@ export function AdminAiAgents() {
                           ) : <span className="text-slate-400 italic text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full text-xs font-semibold">{cfg.voice}</span>
+                          <span className="bg-teal-100 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full text-xs font-semibold">{cfg.voice}</span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1 flex-wrap">

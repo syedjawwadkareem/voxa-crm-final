@@ -233,7 +233,7 @@ export function NotificationProvider() {
                   <AlertTriangle size={20} />
                 </div>
               ) : (
-                <div className="w-11 h-11 rounded-full bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-900/60 flex items-center justify-center shrink-0 text-purple-600 dark:text-purple-400">
+                <div className="w-11 h-11 rounded-full bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-900/60 flex items-center justify-center shrink-0 text-teal-600 dark:text-teal-400">
                   <HelpCircle size={20} />
                 </div>
               )}
@@ -269,7 +269,7 @@ export function NotificationProvider() {
                     ? 'bg-rose-600 hover:bg-rose-700 focus:ring-rose-500'
                     : confirmState.variant === 'warning'
                     ? 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500'
-                    : 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500'
+                    : 'bg-[#0f8f7a] hover:bg-[#0d7d6b] focus:ring-teal-500'
                 }`}
               >
                 {confirmState.confirmText || (confirmState.variant === 'danger' ? 'Delete' : 'Confirm')}

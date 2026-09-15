@@ -120,7 +120,7 @@ export function IVRCampaignList({
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
                   No campaigns found on OBD CMS. Click{' '}
-                  <span className="font-semibold text-indigo-600 cursor-pointer" onClick={onCreateClick}>
+                  <span className="font-semibold text-teal-600 hover:text-teal-700 cursor-pointer" onClick={onCreateClick}>
                     Create Campaign
                   </span>{' '}
                   to get started.

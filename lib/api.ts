@@ -306,6 +306,292 @@ export const messengerApi = {
     api.post<{ success: boolean }>('/integrations/messages/send', { psid, text }),
 };
 
+export interface CampaignInsights {
+  spend: string;
+  reach: string;
+  impressions: string;
+  clicks: string;
+  unique_clicks?: string;
+  ctr: string;
+  unique_ctr?: string;
+  cpm?: string;
+  cpc?: string;
+  cpp?: string;
+  frequency?: string;
+  actions?: Record<string, string>;
+  cost_per_action_type?: Record<string, string>;
+  action_values?: Record<string, string>;
+  date_start?: string;
+  date_stop?: string;
+}
+
+export interface AgeInsight {
+  age: string;
+  spend: string;
+  impressions: string;
+  clicks: string;
+  ctr?: string;
+  cpm?: string;
+  cpc?: string;
+  actions?: Record<string, string>;
+}
+
+export interface GenderInsight {
+  gender: string;
+  spend: string;
+  impressions: string;
+  clicks: string;
+}
+
+export interface PlacementInsight {
+  publisher_platform: string;
+  platform_position: string;
+  spend: string;
+  impressions: string;
+  clicks: string;
+}
+
+export interface CountryInsight {
+  country: string;
+  spend: string;
+  impressions: string;
+  clicks: string;
+}
+
+export interface DeviceInsight {
+  impression_device: string;
+  spend: string;
+  impressions: string;
+  clicks: string;
+}
+
+export interface DailyInsight {
+  date_start: string;
+  date_stop: string;
+  spend: string;
+  reach: string;
+  impressions: string;
+  clicks: string;
+}
+
+export interface AdCreative {
+  id: string;
+  name?: string;
+  title?: string;
+  body?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  call_to_action_type?: string;
+  object_story_spec?: any;
+  created_time?: string;
+}
+
+export interface MetaAd {
+  id: string;
+  name: string;
+  adset_id?: string;
+  campaign_id?: string;
+  status: string;
+  effective_status: string;
+  configured_status?: string;
+  bid_type?: string;
+  preview_shareable_link?: string;
+  created_time?: string;
+  updated_time?: string;
+  creative?: AdCreative | null;
+  insights?: CampaignInsights | null;
+}
+
+export interface MetaAdSet {
+  id: string;
+  name: string;
+  campaign_id: string;
+  status: string;
+  effective_status: string;
+  configured_status?: string;
+  daily_budget?: string | null;
+  lifetime_budget?: string | null;
+  budget_remaining?: string | null;
+  bid_strategy?: string;
+  optimization_goal?: string;
+  billing_event?: string;
+  destination_type?: string;
+  promoted_object?: any;
+  targeting?: {
+    age_min?: number;
+    age_max?: number;
+    genders?: number[];
+    geo_locations?: {
+      countries?: string[];
+      cities?: Array<{ key: string; name: string }>;
+    };
+    interests?: Array<{ id: string; name: string }>;
+    publisher_platforms?: string[];
+  };
+  is_dynamic_creative?: boolean;
+  learning_stage_info?: any;
+  start_time?: string;
+  created_time?: string;
+  updated_time?: string;
+  insights?: CampaignInsights | null;
+  ads?: MetaAd[];
+}
+
+export interface MetaCampaign {
+  id: string;
+  name: string;
+  objective: string;
+  status: 'ACTIVE' | 'PAUSED' | 'DELETED' | 'ARCHIVED' | string;
+  effective_status: string;
+  configured_status?: string;
+  daily_budget?: string | null;
+  lifetime_budget?: string | null;
+  budget_remaining?: string | null;
+  spend_cap?: string | null;
+  bid_strategy?: string;
+  buying_type?: string;
+  pacing_type?: string[];
+  start_time?: string | null;
+  stop_time?: string | null;
+  created_time?: string;
+  updated_time?: string;
+  special_ad_categories?: string[];
+  issues_info?: any;
+  source_campaign_id?: string;
+  ad_account_id?: string;
+  ad_account_name?: string;
+  page_id?: string;
+  page_name?: string;
+  insights?: CampaignInsights | null;
+  insights_by_age?: AgeInsight[];
+  insights_by_gender?: GenderInsight[];
+  insights_by_placement?: PlacementInsight[];
+  insights_by_country?: CountryInsight[];
+  insights_by_device?: DeviceInsight[];
+  insights_daily?: DailyInsight[];
+  adsets?: MetaAdSet[];
+}
+
+export interface CreateCampaignPayload {
+  name: string;
+  objective: string;
+  status?: string;
+  special_ad_categories?: string[];
+  daily_budget?: number;
+  lifetime_budget?: number;
+  bid_strategy?: string;
+  start_time?: string;
+  stop_time?: string;
+}
+
+export interface CreateAdSetPayload {
+  name: string;
+  campaign_id: string;
+  daily_budget?: number;
+  lifetime_budget?: number;
+  status?: string;
+  targeting?: any;
+  bid_amount?: number;
+  start_time?: string;
+  end_time?: string;
+  optimization_goal?: string;
+  billing_event?: string;
+  promoted_object?: any;
+  destination_type?: string;
+}
+
+export interface CreateAdCreativePayload {
+  name: string;
+  image_hash: string;
+  message: string;
+  headline: string;
+  description?: string;
+  lead_gen_form_id?: string;
+  cta_type?: string;
+  link_url?: string;
+}
+
+export interface CreateAdPayload {
+  name: string;
+  adset_id: string;
+  creative_id: string;
+  status?: string;
+}
+
+export const campaignsApi = {
+  getCampaigns: (datePreset = 'last_30d') =>
+    api.get<{ success: boolean; date_preset: string; campaigns: MetaCampaign[]; accounts?: any[]; error?: string }>(
+      `/integrations/campaigns?date_preset=${datePreset}`
+    ),
+
+  getCampaignById: (id: string, datePreset = 'last_30d', includeBreakdowns = false) =>
+    api.get<{ success: boolean; date_preset: string; campaign: MetaCampaign; error?: string }>(
+      `/integrations/campaigns/${id}?date_preset=${datePreset}${includeBreakdowns ? '&include_breakdowns=true' : ''}`
+    ),
+
+  createCampaign: (payload: CreateCampaignPayload) =>
+    api.post<{ success: boolean; campaign_id: string; error?: string }>('/integrations/campaigns/create', payload),
+
+  updateCampaign: (id: string, payload: Partial<MetaCampaign>) =>
+    api.patch<{ success: boolean; updated_campaign_id: string; error?: string }>(`/integrations/campaigns/${id}`, payload),
+
+  deleteCampaign: (id: string) =>
+    api.delete<{ success: boolean; deleted_campaign_id: string; error?: string }>(`/integrations/campaigns/${id}`),
+
+  getAdSets: (campaignId?: string) =>
+    api.get<{ success: boolean; adsets: MetaAdSet[]; error?: string }>(
+      campaignId ? `/integrations/adsets?campaign_id=${campaignId}` : '/integrations/adsets'
+    ),
+
+  createAdSet: (payload: CreateAdSetPayload) =>
+    api.post<{ success: boolean; adset_id: string; error?: string }>('/integrations/adsets/create', payload),
+
+  updateAdSet: (id: string, payload: Partial<MetaAdSet>) =>
+    api.patch<{ success: boolean; updated_adset_id: string; error?: string }>(`/integrations/adsets/${id}`, payload),
+
+  deleteAdSet: (id: string) =>
+    api.delete<{ success: boolean; deleted_adset_id: string; error?: string }>(`/integrations/adsets/${id}`),
+
+  uploadAdImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    // Use raw fetch or custom post with multipart
+    const token = typeof window !== 'undefined' ? localStorage.getItem('voxa_auth_token_customer') || localStorage.getItem('voxa_auth_token_admin') : null;
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+    const res = await fetch(`${baseUrl}/integrations/adcreatives/upload-image`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: formData
+    });
+    return res.json() as Promise<{ success: boolean; image_hash?: string; error?: string }>;
+  },
+
+  createAdCreative: (payload: CreateAdCreativePayload) =>
+    api.post<{ success: boolean; creative_id: string; error?: string }>('/integrations/adcreatives/create', payload),
+
+  getAdCreatives: () =>
+    api.get<{ success: boolean; creatives: AdCreative[]; error?: string }>('/integrations/adcreatives'),
+
+  deleteAdCreative: (id: string) =>
+    api.delete<{ success: boolean; deleted_creative_id: string; error?: string }>(`/integrations/adcreatives/${id}`),
+
+  getAds: (adsetId?: string) =>
+    api.get<{ success: boolean; ads: MetaAd[]; error?: string }>(
+      adsetId ? `/integrations/ads?adset_id=${adsetId}` : '/integrations/ads'
+    ),
+
+  createAd: (payload: CreateAdPayload) =>
+    api.post<{ success: boolean; ad_id: string; error?: string }>('/integrations/ads/create', payload),
+
+  updateAd: (id: string, payload: Partial<MetaAd>) =>
+    api.patch<{ success: boolean; updated_ad_id: string; error?: string }>(`/integrations/ads/${id}`, payload),
+
+  deleteAd: (id: string) =>
+    api.delete<{ success: boolean; deleted_ad_id: string; error?: string }>(`/integrations/ads/${id}`),
+};
+
 export const integrationsApi = {
   getConfig: (platformType: PlatformType) =>
     api.get<{ success: boolean; data: PlatformIntegration | null }>(`/integrations/config/${platformType}`),

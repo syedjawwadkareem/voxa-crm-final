@@ -25,7 +25,7 @@ export default function CompanyLoginPage() {
   const [showPass, setShowPass] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated() && getPortal() === 'customer') {
+    if (isAuthenticated('customer') && getPortal('customer') === 'customer') {
       router.replace('/company/dashboard');
     }
   }, [router]);

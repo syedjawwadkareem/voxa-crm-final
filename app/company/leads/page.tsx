@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import {
   Users, RefreshCw, Loader2, Phone, Mail, Search, Filter, Calendar, ClipboardList, X,
   PhoneOutgoing, PhoneIncoming, Clock, AlertCircle, MessageSquare, Send, CheckCircle2,
-  ExternalLink, Plus, Upload, FileText
+  ExternalLink, Plus, Upload, FileText, Megaphone
 } from 'lucide-react';
 import { CompanyHeader } from '@/components/company/CompanyHeader';
+import { CampaignsSection } from '@/components/company/CampaignsSection';
 import {
   leadsApi, integrationsApi, messengerApi, type CapturedLead, type LeadsStats, type MetaForm,
   type MessengerConversation, type MessengerMessage
@@ -725,7 +726,7 @@ function MessengerSection() {
 
 // ─── Main Page Component ──────────────────────────────────────────────────────
 export default function LeadManagementPage() {
-  const [mainTab, setMainTab] = useState<'leads' | 'messenger'>('leads');
+  const [mainTab, setMainTab] = useState<'leads' | 'messenger' | 'campaigns'>('leads');
   const [leads, setLeads] = useState<CapturedLead[]>([]);
   const [stats, setStats] = useState<LeadsStats | null>(null);
   const [loadingLeads, setLoadingLeads] = useState(false);
@@ -824,7 +825,7 @@ export default function LeadManagementPage() {
     <div>
       <CompanyHeader
         title="Lead Management"
-        subtitle="View and manage captured leads, manual CSV imports, and Facebook Messenger"
+        subtitle="View and manage captured leads, manual CSV imports, Facebook Messenger, and Meta Ad Campaigns"
         onMenuClick={() => {}}
       />
 
@@ -839,8 +840,7 @@ export default function LeadManagementPage() {
           {/* Add Leads Action Buttons */}
           <div className="flex items-center gap-2.5">
             <button
-              className="btn-primary text-xs flex items-center gap-1.5 px-3.5 py-2.5 font-semibold rounded-xl"
-              style={{ background: '#4f46e5' }}
+              className="btn-primary text-xs flex items-center gap-1.5 px-3.5 py-2.5 font-semibold rounded-xl bg-teal-600 hover:bg-teal-700 text-white shadow-sm"
               onClick={() => setShowAddSingleModal(true)}
             >
               <Plus size={15} /> Add Single Lead
@@ -849,7 +849,7 @@ export default function LeadManagementPage() {
               className="btn-outline text-xs flex items-center gap-1.5 px-3.5 py-2.5 font-semibold rounded-xl bg-white text-slate-700 hover:bg-slate-50 border-slate-200"
               onClick={() => setShowUploadCsvModal(true)}
             >
-              <Upload size={15} className="text-indigo-600" /> Upload CSV
+              <Upload size={15} className="text-teal-600" /> Upload CSV
             </button>
           </div>
         </div>
@@ -858,7 +858,7 @@ export default function LeadManagementPage() {
         <div className="flex items-center mb-6 border-b border-slate-200 gap-6">
           <button
             className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-              mainTab === 'leads' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+              mainTab === 'leads' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
             onClick={() => setMainTab('leads')}
           >
@@ -866,15 +866,25 @@ export default function LeadManagementPage() {
           </button>
           <button
             className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-              mainTab === 'messenger' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+              mainTab === 'messenger' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
             onClick={() => setMainTab('messenger')}
           >
             <MessageSquare size={16} /> Facebook Messenger
           </button>
+          <button
+            className={`pb-3 px-1 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+              mainTab === 'campaigns' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+            onClick={() => setMainTab('campaigns')}
+          >
+            <Megaphone size={16} /> Meta Campaigns
+          </button>
         </div>
 
-        {mainTab === 'messenger' ? (
+        {mainTab === 'campaigns' ? (
+          <CampaignsSection />
+        ) : mainTab === 'messenger' ? (
           <MessengerSection />
         ) : (
           <>

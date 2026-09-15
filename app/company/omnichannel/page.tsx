@@ -572,7 +572,7 @@ function MetaFormGenerator({ onFormCreated }: { onFormCreated: () => void }) {
               <input
                 type="text"
                 className="w-full border-2 rounded-xl px-4 py-3 text-slate-800 focus:outline-none transition-all"
-                style={{ borderColor: '#4f46e5', boxShadow: '0 0 0 4px rgba(79, 70, 229, 0.1)' }}
+                style={{ borderColor: '#0f8f7a', boxShadow: '0 0 0 4px rgba(15, 143, 122, 0.1)' }}
                 placeholder="e.g. When do you plan to move?"
                 value={customFieldLabel}
                 onChange={e => setCustomFieldLabel(e.target.value)}
@@ -595,8 +595,8 @@ function MetaFormGenerator({ onFormCreated }: { onFormCreated: () => void }) {
                 Cancel
               </button>
               <button
-                className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: '#4f46e5' }}
+                className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-teal-700/15"
+                style={{ background: 'linear-gradient(135deg, #0f8f7a, #22c1a5)' }}
                 disabled={!customFieldLabel.trim()}
                 onClick={() => {
                   if (customFieldLabel.trim()) {
@@ -1284,13 +1284,13 @@ export default function CompanyOmnichannelPage() {
         { key: 'daraz', icon: Package, label: 'Daraz', desc: 'Seller Center Sync', color: '#f85606', bg: '#fff7ed', border: '#fed7aa' },
         { key: 'meta', icon: Facebook, label: 'Meta', desc: 'Lead Ads & Catalog', color: '#1877F2', bg: '#e7f0fd', border: '#bfdbfe' },
         { key: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', desc: 'Business Messaging', color: '#25D366', bg: '#f0fdf4', border: '#bbf7d0' },
-        { key: 'sms', icon: Phone, label: 'SMS', desc: 'Text & Tracking OTPs', color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe' },
+        { key: 'sms', icon: Phone, label: 'SMS', desc: 'Text & Tracking OTPs', color: '#0f8f7a', bg: '#f0fdf9', border: '#99f6e4' },
         { key: 'email', icon: Mail, label: 'Email', desc: 'Order Notifications', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
       ]
     : [
         { key: 'meta', icon: Facebook, label: 'Meta', desc: 'Lead Ads & Forms', color: '#1877F2', bg: '#e7f0fd', border: '#bfdbfe' },
         { key: 'whatsapp', icon: MessageSquare, label: 'WhatsApp', desc: 'Business Messaging', color: '#25D366', bg: '#f0fdf4', border: '#bbf7d0' },
-        { key: 'sms', icon: Phone, label: 'SMS', desc: 'Text Messaging', color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe' },
+        { key: 'sms', icon: Phone, label: 'SMS', desc: 'Text Messaging', color: '#0f8f7a', bg: '#f0fdf9', border: '#99f6e4' },
         { key: 'email', icon: Mail, label: 'Email', desc: 'Email Marketing', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
       ];
 
@@ -1429,7 +1429,7 @@ export default function CompanyOmnichannelPage() {
 
             {/* SMS tab */}
             {activeTab === 'sms' && (
-              <ComingSoon icon={Phone} label="SMS" color="#8b5cf6" />
+              <ComingSoon icon={Phone} label="SMS" color="#0f8f7a" />
             )}
 
             {/* Email tab */}
