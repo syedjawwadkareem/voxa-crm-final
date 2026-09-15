@@ -11,7 +11,7 @@ import {
   RefreshCw, Search, ChevronLeft, ChevronRight,
   Eye, Headphones, Archive, RotateCcw, Filter,
   X, Activity, ArrowUpDown, Building2, AlertCircle,
-  Sparkles, CheckCircle
+  Sparkles, CheckCircle, Users
 } from 'lucide-react';
 import { companiesApi, telephonyApi } from '@/lib/api';
 import { CallAnalysisModal } from './CallAnalysisModal';
@@ -35,6 +35,7 @@ export interface CallRecord {
   companyId?: string;
   companyName?: string | null;
   userName?: string | null;
+  leadName?: string | null;
 }
 
 // API raw statuses
@@ -712,7 +713,7 @@ export function MasterLogs() {
                       </div>
                     </td>
                     <td style={TD}>
-                      <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12, fontWeight: 500 }}>
+                      <span style={{ color: '#334155', fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
                         {direction === 'out' ? log.destination : log.callerid}
                       </span>
                     </td>

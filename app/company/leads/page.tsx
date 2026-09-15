@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Users, RefreshCw, Loader2, Phone, Mail, Search, Filter, Calendar, ClipboardList, X,
   PhoneOutgoing, PhoneIncoming, Clock, AlertCircle, MessageSquare, Send, CheckCircle2,
-  ExternalLink, Plus, Upload, FileText, Megaphone
+  ExternalLink, Plus, Upload, FileText, Megaphone, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { CompanyHeader } from '@/components/company/CompanyHeader';
 import { CampaignsSection } from '@/components/company/CampaignsSection';
@@ -737,9 +737,11 @@ export default function LeadManagementPage() {
   const [showAddSingleModal, setShowAddSingleModal] = useState(false);
   const [showUploadCsvModal, setShowUploadCsvModal] = useState(false);
 
-  // Filters
+  // Filters & Pagination
   const [dateFilter, setDateFilter] = useState('');
   const [formFilter, setFormFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const LEADS_PER_PAGE = 10;
 
   const fetchLeadsAndForms = useCallback(async () => {
     setLoadingLeads(true);
@@ -870,6 +872,18 @@ export default function LeadManagementPage() {
 
     return result;
   }, [leads, searchQuery, formFilter, dateFilter]);
+
+  // Reset to first page when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, formFilter, dateFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / LEADS_PER_PAGE));
+
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (currentPage - 1) * LEADS_PER_PAGE;
+    return filteredLeads.slice(startIndex, startIndex + LEADS_PER_PAGE);
+  }, [filteredLeads, currentPage]);
 
   return (
     <div>
@@ -1007,7 +1021,12 @@ export default function LeadManagementPage() {
 
             <div className="card p-0 border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h2 className="text-sm font-bold text-slate-800">Showing {filteredLeads.length} leads</h2>
+                <h2 className="text-sm font-bold text-slate-800">Captured Leads ({filteredLeads.length})</h2>
+                {filteredLeads.length > 0 && (
+                  <span className="text-xs text-slate-500 font-medium">
+                    Showing {((currentPage - 1) * LEADS_PER_PAGE) + 1}–{Math.min(currentPage * LEADS_PER_PAGE, filteredLeads.length)} of {filteredLeads.length}
+                  </span>
+                )}
               </div>
 
               {loadingLeads ? (
@@ -1020,67 +1039,125 @@ export default function LeadManagementPage() {
                   <p className="text-sm">No leads match your criteria.</p>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
-                  {filteredLeads.map(lead => {
-                    const initials = (lead.full_name || 'U').substring(0, 2).toUpperCase();
+                <>
+                  <div className="divide-y divide-slate-100">
+                    {paginatedLeads.map(lead => {
+                      const initials = (lead.full_name || 'U').substring(0, 2).toUpperCase();
 
-                    const diffMs = Date.now() - new Date(lead.created_at).getTime();
-                    const diffMins = Math.floor(diffMs / 60000);
-                    const diffHours = Math.floor(diffMins / 60);
-                    const diffDays = Math.floor(diffHours / 24);
-                    let timeStr = '';
-                    if (diffMins < 60) timeStr = `${diffMins}m ago`;
-                    else if (diffHours < 24) timeStr = `${diffHours}h ago`;
-                    else timeStr = `${diffDays}d ago`;
+                      const diffMs = Date.now() - new Date(lead.created_at).getTime();
+                      const diffMins = Math.floor(diffMs / 60000);
+                      const diffHours = Math.floor(diffMins / 60);
+                      const diffDays = Math.floor(diffHours / 24);
+                      let timeStr = '';
+                      if (diffMins < 60) timeStr = `${diffMins}m ago`;
+                      else if (diffHours < 24) timeStr = `${diffHours}h ago`;
+                      else timeStr = `${diffDays}d ago`;
 
-                    const sourceLabel = lead.source === 'csv' ? 'CSV Import' : lead.source === 'manual' ? 'Manual Entry' : 'Meta Lead Gen';
+                      const sourceLabel = lead.source === 'csv' ? 'CSV Import' : lead.source === 'manual' ? 'Manual Entry' : 'Meta Lead Gen';
 
-                    return (
-                      <div key={lead.id} className="p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-slate-50 transition-colors">
-                        <div className="flex items-center gap-3 sm:w-56 flex-shrink-0">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm" style={{ background: lead.source === 'csv' ? '#3b82f6' : lead.source === 'manual' ? '#10b981' : '#a78bfa' }}>
-                            {initials}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-800 text-sm mb-1 truncate">{lead.full_name || '—'}</div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {lead.lead_status === 'new' && (
-                                <span className="text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">New</span>
-                              )}
-                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{sourceLabel}</span>
+                      return (
+                        <div key={lead.id} className="p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-slate-50 transition-colors">
+                          <div className="flex items-center gap-3 sm:w-56 flex-shrink-0">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm" style={{ background: lead.source === 'csv' ? '#3b82f6' : lead.source === 'manual' ? '#10b981' : '#a78bfa' }}>
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-800 text-sm mb-1 truncate">{lead.full_name || '—'}</div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {lead.lead_status === 'new' && (
+                                  <span className="text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">New</span>
+                                )}
+                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{sourceLabel}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 items-center">
-                          <div className="flex flex-col gap-2 justify-center">
-                            <div className="flex items-center gap-2 text-slate-500 text-sm truncate">
-                              <Phone size={14} className="text-slate-400 shrink-0" /> <span className="truncate">{lead.phone || '—'}</span>
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 items-center">
+                            <div className="flex flex-col gap-2 justify-center">
+                              <div className="flex items-center gap-2 text-slate-500 text-sm truncate">
+                                <Phone size={14} className="text-slate-400 shrink-0" /> <span className="truncate">{lead.phone || '—'}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-500 text-sm truncate">
+                                <Mail size={14} className="text-slate-400 shrink-0" /> <span className="truncate">{lead.email || '—'}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-slate-500 text-sm truncate">
-                              <Mail size={14} className="text-slate-400 shrink-0" /> <span className="truncate">{lead.email || '—'}</span>
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                              <ClipboardList size={13} className="text-slate-400 shrink-0" />
+                              <span className="truncate font-medium">Form / Group: <span className="text-slate-800 font-semibold">{lead.form_name || 'Default'}</span></span>
                             </div>
                           </div>
-                          <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                            <ClipboardList size={13} className="text-slate-400 shrink-0" />
-                            <span className="truncate font-medium">Form / Group: <span className="text-slate-800 font-semibold">{lead.form_name || 'Default'}</span></span>
+                          <div className="flex flex-col gap-2 shrink-0 sm:items-end w-full sm:w-auto">
+                            <div className="text-xs text-slate-400 font-medium whitespace-nowrap self-start sm:self-auto mt-2 sm:mt-0" suppressHydrationWarning>
+                              {timeStr}
+                            </div>
+                            <button
+                              onClick={() => setSelectedLeadForLogs(lead)}
+                              className="text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors self-start sm:self-auto text-slate-600 bg-white mt-1 sm:mt-0"
+                              style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                            >
+                              View Call Logs
+                            </button>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 shrink-0 sm:items-end w-full sm:w-auto">
-                          <div className="text-xs text-slate-400 font-medium whitespace-nowrap self-start sm:self-auto mt-2 sm:mt-0" suppressHydrationWarning>
-                            {timeStr}
-                          </div>
-                          <button
-                            onClick={() => setSelectedLeadForLogs(lead)}
-                            className="text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors self-start sm:self-auto text-slate-600 bg-white mt-1 sm:mt-0"
-                            style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
-                          >
-                            View Call Logs
-                          </button>
-                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pagination Footer */}
+                  {filteredLeads.length > LEADS_PER_PAGE && (
+                    <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="text-xs text-slate-500">
+                        Page <span className="font-semibold text-slate-700">{currentPage}</span> of <span className="font-semibold text-slate-700">{totalPages}</span>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          title="Previous page"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter(page => {
+                            if (totalPages <= 5) return true;
+                            if (page === 1 || page === totalPages) return true;
+                            return Math.abs(page - currentPage) <= 1;
+                          })
+                          .map((page, idx, arr) => {
+                            const prevPage = arr[idx - 1];
+                            const hasGap = prevPage && page - prevPage > 1;
+
+                            return (
+                              <div key={page} className="flex items-center gap-1.5">
+                                {hasGap && <span className="px-1 text-xs text-slate-400">…</span>}
+                                <button
+                                  onClick={() => setCurrentPage(page)}
+                                  className={`min-w-[32px] h-8 px-2 text-xs font-semibold rounded-lg transition ${
+                                    currentPage === page
+                                      ? 'bg-teal-600 text-white shadow-xs'
+                                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {page}
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          title="Next page"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </>

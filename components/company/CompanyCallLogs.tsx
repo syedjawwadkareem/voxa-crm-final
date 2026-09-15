@@ -10,7 +10,7 @@ import {
   PhoneOutgoing, PhoneIncoming, PhoneMissed,
   RefreshCw, Search, ChevronLeft, ChevronRight,
   Eye, Headphones, Archive, RotateCcw, X, Activity, ArrowUpDown, Filter,
-  Sparkles, AlertCircle, CheckCircle
+  Sparkles, AlertCircle, CheckCircle, Users
 } from 'lucide-react';
 import { telephonyApi } from '@/lib/api';
 import { CallAnalysisModal } from '../admin/CallAnalysisModal';
@@ -582,7 +582,7 @@ export function CompanyCallLogs() {
                 <th style={TH}>Date &amp; Time ↑</th>
                 <th style={TH}>User / Agent</th>
                 <th style={TH}>ID / Ext</th>
-                <th style={TH}>Customer Number</th>
+                <th style={TH}>Destination / Customer</th>
                 <th style={TH}>Direction</th>
                 <th style={TH}>Duration</th>
                 <th style={TH}>Bill Sec</th>
@@ -626,16 +626,9 @@ export function CompanyCallLogs() {
                       </span>
                     </td>
                     <td style={TD}>
-                      <div className="flex flex-col">
-                        <span style={{ color: '#475569', fontFamily: 'monospace', fontSize: 12, fontWeight: 500 }}>
-                          {direction === 'out' ? log.destination : log.callerid}
-                        </span>
-                        {log.leadName && (
-                          <span className="inline-flex items-center text-[10px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 mt-0.5 self-start">
-                            {log.leadName}
-                          </span>
-                        )}
-                      </div>
+                      <span style={{ color: '#334155', fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}>
+                        {direction === 'out' ? log.destination : log.callerid}
+                      </span>
                     </td>
                     <td style={TD}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

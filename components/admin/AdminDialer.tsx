@@ -629,10 +629,7 @@ export function AdminDialer() {
     const q = searchLeadQuery.toLowerCase();
     return leads.filter(l =>
       (l.full_name || '').toLowerCase().includes(q) ||
-      (l.phone || '').includes(q) ||
-      (l.email || '').toLowerCase().includes(q) ||
-      (l.source || '').toLowerCase().includes(q) ||
-      (l.form_name || '').toLowerCase().includes(q)
+      (l.phone || '').includes(q)
     ).slice(0, 10);
   }, [leads, searchLeadQuery]);
 
@@ -992,7 +989,7 @@ export function AdminDialer() {
                   setSearchLeadQuery(e.target.value);
                   setIsSearchOpen(true);
                 }}
-                placeholder="Search name, phone, email (Meta, WA...)"
+                placeholder="Search by name or number..."
                 className="w-full bg-slate-50/80 border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-400 transition-all shadow-2xs"
               />
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -1034,50 +1031,23 @@ export function AdminDialer() {
                     No leads found matching &ldquo;{searchLeadQuery}&rdquo;
                   </div>
                 ) : (
-                  filteredLeads.map(lead => {
-                    const src = (lead.source || lead.form_name || 'meta').toLowerCase();
-                    let badgeBg = 'bg-teal-50 text-teal-700 border-teal-200';
-                    let badgeLabel = 'Meta';
-                    if (src.includes('whatsapp')) {
-                      badgeBg = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                      badgeLabel = 'WhatsApp';
-                    } else if (src.includes('email') || src.includes('mail')) {
-                      badgeBg = 'bg-indigo-50 text-indigo-700 border-indigo-200';
-                      badgeLabel = 'Email';
-                    } else if (src.includes('shopify')) {
-                      badgeBg = 'bg-purple-50 text-purple-700 border-purple-200';
-                      badgeLabel = 'Shopify';
-                    } else if (src.includes('daraz')) {
-                      badgeBg = 'bg-orange-50 text-orange-700 border-orange-200';
-                      badgeLabel = 'Daraz';
-                    } else if (src.includes('csv')) {
-                      badgeBg = 'bg-slate-100 text-slate-700 border-slate-200';
-                      badgeLabel = 'CSV';
-                    } else if (lead.form_name) {
-                      badgeLabel = lead.form_name;
-                    }
-
-                    return (
-                      <div
-                        key={lead.id}
-                        onClick={() => handleSelectLead(lead)}
-                        className="p-2.5 hover:bg-teal-50/80 transition cursor-pointer flex items-center justify-between text-left group"
-                      >
-                        <div className="min-w-0 pr-2">
-                          <div className="font-semibold text-slate-800 text-xs group-hover:text-teal-700 truncate">
-                            {lead.full_name || 'Unknown Contact'}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
-                            <Phone size={10} className="text-slate-400" />
-                            {lead.phone || 'No phone'}
-                          </div>
+                  filteredLeads.map(lead => (
+                    <div
+                      key={lead.id}
+                      onClick={() => handleSelectLead(lead)}
+                      className="px-3 py-2.5 hover:bg-teal-50/80 transition cursor-pointer flex items-center justify-between text-left group"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-slate-800 text-xs group-hover:text-teal-700 truncate">
+                          {lead.full_name || 'Unknown Contact'}
                         </div>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wide flex-shrink-0 ${badgeBg}`}>
-                          {badgeLabel}
-                        </span>
+                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
+                          <Phone size={10} className="text-slate-400 shrink-0" />
+                          <span>{lead.phone || 'No phone'}</span>
+                        </div>
                       </div>
-                    );
-                  })
+                    </div>
+                  ))
                 )}
               </div>
             )}
