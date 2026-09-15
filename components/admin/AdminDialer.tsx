@@ -21,7 +21,7 @@ import {
   Search, X, User, MessageSquare, Mail, Layers, Sparkles
 } from 'lucide-react';
 import { getPortal, getAccessToken, getUser } from '@/lib/auth';
-import { leadsApi, type CapturedLead } from '@/lib/api';
+import { leadsApi, integrationsApi, type CapturedLead } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -115,7 +115,10 @@ export function AdminDialer() {
     banner: null,
   });
 
-  // Omnichannel Leads Search state
+  // Omnichannel Leads Search state (Company Portal only)
+  const isCompanyPortal = typeof window !== 'undefined'
+    ? (getPortal() === 'customer' || window.location.pathname.startsWith('/company'))
+    : false;
   const [leads, setLeads] = useState<CapturedLead[]>([]);
   const [searchLeadQuery, setSearchLeadQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -535,14 +538,69 @@ export function AdminDialer() {
       })
       .catch(() => { });
 
-    // Load omnichannel leads (Meta, WhatsApp, Email, CSV, etc.)
-    leadsApi.getAll()
-      .then(res => {
-        if (res.success && res.leads) {
-          setLeads(res.leads);
+    // Load omnichannel leads (Meta forms leads + stored leads) strictly for company portal
+    const isCompany = portal === 'customer' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/company'));
+    if (isCompany) {
+      const loadAllLeads = async () => {
+        try {
+          const [dbRes, formsRes] = await Promise.allSettled([
+            leadsApi.getAll(),
+            integrationsApi.getMetaForms(),
+          ]);
+
+          const combinedLeads: CapturedLead[] = [];
+          const seenIds = new Set<string>();
+
+          if (dbRes.status === 'fulfilled' && dbRes.value?.success && dbRes.value.leads) {
+            dbRes.value.leads.forEach(l => {
+              if (l.id) seenIds.add(String(l.id));
+              combinedLeads.push(l);
+            });
+          }
+
+          if (formsRes.status === 'fulfilled' && formsRes.value?.success && formsRes.value.forms) {
+            const forms = formsRes.value.forms;
+            const formLeadsPromises = forms.map(f =>
+              integrationsApi.getLeadsByFormId(f.id).catch(() => null)
+            );
+            const formsResults = await Promise.allSettled(formLeadsPromises);
+
+            formsResults.forEach((res, idx) => {
+              if (res.status === 'fulfilled' && res.value?.success && res.value.leads) {
+                const form = forms[idx];
+                res.value.leads.forEach(l => {
+                  if (l.id && seenIds.has(String(l.id))) return;
+                  if (l.id) seenIds.add(String(l.id));
+
+                  const raw = l.raw || {};
+                  const fullName = l.fullName && l.fullName !== '—' ? l.fullName : (raw.full_name || raw.name || raw.FULL_NAME || 'Meta Lead');
+                  const phone = l.phone && l.phone !== '—' ? l.phone : (raw.phone_number || raw.phone || raw.PHONE || '');
+                  const email = l.email && l.email !== '—' ? l.email : (raw.email || raw.EMAIL || '');
+
+                  combinedLeads.push({
+                    id: l.id,
+                    full_name: fullName,
+                    email,
+                    phone,
+                    source: 'Meta',
+                    form_id: form?.id || '',
+                    form_name: form?.name || 'Instant Form',
+                    status: 'New',
+                    created_at: l.created_time || new Date().toISOString(),
+                    raw_data: raw
+                  });
+                });
+              }
+            });
+          }
+
+          setLeads(combinedLeads);
+        } catch {
+          // silent fallback
         }
-      })
-      .catch(() => { });
+      };
+      loadAllLeads();
+    }
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -909,8 +967,8 @@ export function AdminDialer() {
           </div>
         )}
 
-        {/* ── Omnichannel Leads Search Bar ──────────────────────────────── */}
-        {callState === 'idle' && (
+        {/* ── Omnichannel Leads Search Bar (Company Portal Only) ──────────────── */}
+        {isCompanyPortal && callState === 'idle' && (
           <div ref={searchContainerRef} className="w-full mb-3.5 relative">
             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
               <span className="flex items-center gap-1">

@@ -744,18 +744,66 @@ export default function LeadManagementPage() {
   const fetchLeadsAndForms = useCallback(async () => {
     setLoadingLeads(true);
     try {
-      // Fetch all stored database leads (includes Meta webhooks, CSV imports, manual entries)
-      const res = await leadsApi.getAll();
-      const allLeads = res.leads ?? [];
+      // 1. Fetch stored database leads, stats, and Meta forms in parallel
+      const [dbRes, statsRes, formsRes] = await Promise.allSettled([
+        leadsApi.getAll(),
+        leadsApi.getStats(),
+        integrationsApi.getMetaForms(),
+      ]);
 
-      // Also get stats from API
-      const statsRes = await leadsApi.getStats().catch(() => null);
+      const allLeads: CapturedLead[] = [];
+      const seenIds = new Set<string>();
+
+      // Populate database leads
+      if (dbRes.status === 'fulfilled' && dbRes.value?.leads) {
+        dbRes.value.leads.forEach(l => {
+          if (l.id) seenIds.add(String(l.id));
+          allLeads.push(l);
+        });
+      }
+
+      // 2. Fetch leads directly from Meta Forms API (e.g. /integrations/meta/forms/:formId/leads)
+      if (formsRes.status === 'fulfilled' && formsRes.value?.success && formsRes.value.forms) {
+        const forms = formsRes.value.forms;
+        const formLeadsPromises = forms.map(f =>
+          integrationsApi.getLeadsByFormId(f.id).catch(() => null)
+        );
+        const formsResults = await Promise.allSettled(formLeadsPromises);
+
+        formsResults.forEach((res, idx) => {
+          if (res.status === 'fulfilled' && res.value?.success && res.value.leads) {
+            const form = forms[idx];
+            res.value.leads.forEach(l => {
+              if (l.id && seenIds.has(String(l.id))) return;
+              if (l.id) seenIds.add(String(l.id));
+
+              const raw = l.raw || {};
+              const fullName = l.fullName && l.fullName !== '—' ? l.fullName : (raw.full_name || raw.name || raw.FULL_NAME || 'Meta Lead');
+              const phone = l.phone && l.phone !== '—' ? l.phone : (raw.phone_number || raw.phone || raw.PHONE || '');
+              const email = l.email && l.email !== '—' ? l.email : (raw.email || raw.EMAIL || '');
+
+              allLeads.push({
+                id: l.id,
+                full_name: fullName,
+                email,
+                phone,
+                source: 'Meta',
+                form_id: form?.id || '',
+                form_name: form?.name || 'Instant Form',
+                status: 'New',
+                created_at: l.created_time || new Date().toISOString(),
+                raw_data: raw
+              });
+            });
+          }
+        });
+      }
 
       setLeads(allLeads);
 
       const today = new Date();
-      if (statsRes?.stats) {
-        setStats(statsRes.stats);
+      if (statsRes.status === 'fulfilled' && statsRes.value?.stats) {
+        setStats(statsRes.value.stats);
       } else {
         setStats({
           total: allLeads.length,
