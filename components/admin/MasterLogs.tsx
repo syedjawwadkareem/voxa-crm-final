@@ -692,6 +692,11 @@ export function MasterLogs() {
                           <span style={{ color: '#0f766e', fontWeight: 600, fontSize: 12 }}>{log.userName}</span>
                           <span style={{ color: '#94a3b8', fontSize: 10 }}>Ext: {log.extension || '—'}</span>
                         </div>
+                      ) : log.extension ? (
+                        <div className="flex flex-col">
+                          <span style={{ color: '#64748b', fontWeight: 500, fontSize: 12 }}>Agent ({log.extension})</span>
+                          <span style={{ color: '#94a3b8', fontSize: 10 }}>Ext: {log.extension}</span>
+                        </div>
                       ) : (
                         <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>
                       )}

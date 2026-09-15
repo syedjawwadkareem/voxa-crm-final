@@ -20,7 +20,7 @@ import {
   AlertCircle, CheckCircle2, WifiOff, Radio, Hash, ChevronDown,
   Search, X, User, MessageSquare, Mail, Layers, Sparkles
 } from 'lucide-react';
-import { getPortal, getAccessToken } from '@/lib/auth';
+import { getPortal, getAccessToken, getUser } from '@/lib/auth';
 import { leadsApi, type CapturedLead } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -640,20 +640,33 @@ export function AdminDialer() {
 
     try {
       let res: Response, data: any;
+      const currentUser = getUser();
+      const token = getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       if (type === 'internal') {
         res = await fetch(`${DIALER}/calls/agent`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: num }),
+          headers,
+          body: JSON.stringify({
+            endpoint: num,
+            agentName: currentUser?.fullName || undefined,
+            agentId: currentUser?.userId || undefined,
+            companyId: currentUser?.companyId || undefined,
+          }),
         });
       } else {
         res = await fetch(`${DIALER}/calls/pstn`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             to: num,
             ...(selectedDid ? { caller_id: selectedDid } : {}),
+            agentName: currentUser?.fullName || undefined,
+            agentId: currentUser?.userId || undefined,
+            companyId: currentUser?.companyId || undefined,
+            agentExtension: phoneRef.current.creds?.agentExtension || undefined,
           }),
         });
       }

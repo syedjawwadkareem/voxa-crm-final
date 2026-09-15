@@ -580,7 +580,7 @@ export function CompanyCallLogs() {
                     style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#0f8f7a' }} />
                 </th>
                 <th style={TH}>Date &amp; Time ↑</th>
-                {isCompanyAdmin && <th style={TH}>User / Agent</th>}
+                <th style={TH}>User / Agent</th>
                 <th style={TH}>ID / Ext</th>
                 <th style={TH}>Customer Number</th>
                 <th style={TH}>Direction</th>
@@ -610,18 +610,16 @@ export function CompanyCallLogs() {
                         {formatDateTime(log.start_time)}
                       </span>
                     </td>
-                    {isCompanyAdmin && (
-                      <td style={TD}>
-                        <div className="flex flex-col">
-                          <span style={{ color: '#1e293b', fontWeight: 600, fontSize: 12 }}>
-                            {log.userName || '—'}
-                          </span>
-                          <span style={{ color: '#94a3b8', fontSize: 10 }}>
-                            Ext: {log.extension || 'System'}
-                          </span>
-                        </div>
-                      </td>
-                    )}
+                    <td style={TD}>
+                      <div className="flex flex-col">
+                        <span style={{ color: '#0f766e', fontWeight: 600, fontSize: 12 }}>
+                          {log.userName || (log.extension ? `Agent (${log.extension})` : '—')}
+                        </span>
+                        <span style={{ color: '#94a3b8', fontSize: 10 }}>
+                          Ext: {log.extension || 'System'}
+                        </span>
+                      </div>
+                    </td>
                     <td style={TD}>
                       <span style={{ color: '#0f766e', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>
                         {log.uniqueid || log.id}
