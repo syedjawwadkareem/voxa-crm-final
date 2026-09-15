@@ -12,14 +12,16 @@
 //   idle ─→ dialing ─→ ringing-agent ─→ agent-answered ─→ dialing-pstn ─→ bridged ─→ ended ─→ idle
 
 import React, {
-  useState, useEffect, useRef, useCallback,
+  useState, useEffect, useRef, useCallback, useMemo,
 } from 'react';
 import {
   Phone, Delete, Mic, MicOff, PhoneOff, Pause, Play,
   ArrowRightLeft, UserPlus, Volume2, ShieldAlert, Loader2,
   AlertCircle, CheckCircle2, WifiOff, Radio, Hash, ChevronDown,
+  Search, X, User, MessageSquare, Mail, Layers, Sparkles
 } from 'lucide-react';
 import { getPortal, getAccessToken } from '@/lib/auth';
+import { leadsApi, type CapturedLead } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -112,6 +114,13 @@ export function AdminDialer() {
     sipWho: '',
     banner: null,
   });
+
+  // Omnichannel Leads Search state
+  const [leads, setLeads] = useState<CapturedLead[]>([]);
+  const [searchLeadQuery, setSearchLeadQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [selectedLeadName, setSelectedLeadName] = useState<string | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
 
   // DID dropdown — admin can call from any DID in the pool
   const [dids, setDids] = useState<{ _id: string; did_number: string; label: string; status: string }[]>([]);
@@ -526,6 +535,14 @@ export function AdminDialer() {
       })
       .catch(() => { });
 
+    // Load omnichannel leads (Meta, WhatsApp, Email, CSV, etc.)
+    leadsApi.getAll()
+      .then(res => {
+        if (res.success && res.leads) {
+          setLeads(res.leads);
+        }
+      })
+      .catch(() => { });
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -534,6 +551,38 @@ export function AdminDialer() {
       if (audio.parentNode) audio.parentNode.removeChild(audio);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Click outside listener for leads search dropdown
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtered leads matching user search
+  const filteredLeads = useMemo(() => {
+    if (!searchLeadQuery.trim()) return [];
+    const q = searchLeadQuery.toLowerCase();
+    return leads.filter(l =>
+      (l.full_name || '').toLowerCase().includes(q) ||
+      (l.phone || '').includes(q) ||
+      (l.email || '').toLowerCase().includes(q) ||
+      (l.source || '').toLowerCase().includes(q) ||
+      (l.form_name || '').toLowerCase().includes(q)
+    ).slice(0, 10);
+  }, [leads, searchLeadQuery]);
+
+  const handleSelectLead = (lead: CapturedLead) => {
+    const cleaned = (lead.phone || '').replace(/[^\d+*#]/g, '');
+    setState(s => ({ ...s, number: cleaned }));
+    setSelectedLeadName(lead.full_name || lead.phone);
+    setSearchLeadQuery('');
+    setIsSearchOpen(false);
+  };
 
   // ── CALL ──────────────────────────────────────────────────────────────────
 
@@ -842,6 +891,121 @@ export function AdminDialer() {
                   ))}
                 </select>
                 <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Omnichannel Leads Search Bar ──────────────────────────────── */}
+        {callState === 'idle' && (
+          <div ref={searchContainerRef} className="w-full mb-3.5 relative">
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <Search size={10} className="text-teal-600" /> Search Omnichannel Leads
+              </span>
+              {leads.length > 0 && (
+                <span className="text-[9px] text-slate-400 font-normal">
+                  {leads.length} contacts
+                </span>
+              )}
+            </label>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={searchLeadQuery}
+                onFocus={() => setIsSearchOpen(true)}
+                onChange={(e) => {
+                  setSearchLeadQuery(e.target.value);
+                  setIsSearchOpen(true);
+                }}
+                placeholder="Search name, phone, email (Meta, WA...)"
+                className="w-full bg-slate-50/80 border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-400 transition-all shadow-2xs"
+              />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              {searchLeadQuery && (
+                <button
+                  onClick={() => {
+                    setSearchLeadQuery('');
+                    setIsSearchOpen(false);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200/60 transition cursor-pointer"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Selected Contact Pill */}
+            {selectedLeadName && !searchLeadQuery && (
+              <div className="mt-1.5 flex items-center justify-between bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-lg text-[11px] text-teal-850">
+                <span className="truncate flex items-center gap-1 font-medium">
+                  <User size={11} className="text-teal-600 flex-shrink-0" />
+                  Lead: <strong className="font-semibold text-teal-950">{selectedLeadName}</strong>
+                </span>
+                <button
+                  onClick={() => setSelectedLeadName(null)}
+                  className="text-teal-600 hover:text-teal-900 ml-1.5 p-0.5 cursor-pointer"
+                  title="Clear selected contact"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            )}
+
+            {/* Results Dropdown */}
+            {isSearchOpen && searchLeadQuery.trim() && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100 animate-slide-up">
+                {filteredLeads.length === 0 ? (
+                  <div className="py-3.5 px-3 text-center text-xs text-slate-400">
+                    No leads found matching &ldquo;{searchLeadQuery}&rdquo;
+                  </div>
+                ) : (
+                  filteredLeads.map(lead => {
+                    const src = (lead.source || lead.form_name || 'meta').toLowerCase();
+                    let badgeBg = 'bg-teal-50 text-teal-700 border-teal-200';
+                    let badgeLabel = 'Meta';
+                    if (src.includes('whatsapp')) {
+                      badgeBg = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                      badgeLabel = 'WhatsApp';
+                    } else if (src.includes('email') || src.includes('mail')) {
+                      badgeBg = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+                      badgeLabel = 'Email';
+                    } else if (src.includes('shopify')) {
+                      badgeBg = 'bg-purple-50 text-purple-700 border-purple-200';
+                      badgeLabel = 'Shopify';
+                    } else if (src.includes('daraz')) {
+                      badgeBg = 'bg-orange-50 text-orange-700 border-orange-200';
+                      badgeLabel = 'Daraz';
+                    } else if (src.includes('csv')) {
+                      badgeBg = 'bg-slate-100 text-slate-700 border-slate-200';
+                      badgeLabel = 'CSV';
+                    } else if (lead.form_name) {
+                      badgeLabel = lead.form_name;
+                    }
+
+                    return (
+                      <div
+                        key={lead.id}
+                        onClick={() => handleSelectLead(lead)}
+                        className="p-2.5 hover:bg-teal-50/80 transition cursor-pointer flex items-center justify-between text-left group"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="font-semibold text-slate-800 text-xs group-hover:text-teal-700 truncate">
+                            {lead.full_name || 'Unknown Contact'}
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
+                            <Phone size={10} className="text-slate-400" />
+                            {lead.phone || 'No phone'}
+                          </div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wide flex-shrink-0 ${badgeBg}`}>
+                          {badgeLabel}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             )}
           </div>
