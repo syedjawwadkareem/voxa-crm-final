@@ -517,7 +517,13 @@ export function AdminDialer() {
 
     fetch(`${API}${didPath}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.data) setDids(d.data); })
+      .then(d => {
+        if (d?.data && d.data.length > 0) {
+          setDids(d.data);
+          // Auto-select the first assigned DID — no "system default" fallback
+          setSelectedDid(d.data[0].did_number);
+        }
+      })
       .catch(() => { });
 
 
@@ -531,12 +537,22 @@ export function AdminDialer() {
 
   // ── CALL ──────────────────────────────────────────────────────────────────
 
+  // Block the call if no DID is assigned
   async function handleCall() {
     const num = state.number.trim();
     if (!num) return;
 
     const type = classifyDestination(num);
     if (type === 'none') return;
+
+    // For PSTN calls, require an assigned DID — no server default allowed
+    if (type === 'pstn' && !selectedDid) {
+      showBanner(
+        '<b>No Caller ID selected.</b> Ask your admin to assign a DID to your account before making outbound calls.',
+        'err'
+      );
+      return;
+    }
 
     // Block PSTN calls if softphone not registered (no audio)
     if (type === 'pstn' && phoneRef.current.creds?.enabled && !phoneRef.current.registered) {
@@ -806,22 +822,28 @@ export function AdminDialer() {
             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
               <Hash size={10} /> Caller ID (DID)
             </label>
-            <div className="relative">
-              <select
-                id="admin-dialer-did-select"
-                value={selectedDid}
-                onChange={e => setSelectedDid(e.target.value)}
-                className="w-full appearance-none bg-slate-50/70 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-300 transition-all cursor-pointer pr-8"
-              >
-                <option value="">— Server Default —</option>
-                {dids.map(d => (
-                  <option key={d._id} value={d.did_number}>
-                    {d.did_number}{d.label ? ` · ${d.label}` : ''} [{d.status}]
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
+            {dids.length === 0 ? (
+              <div className="w-full flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-700">
+                <span className="font-semibold">No DID assigned.</span>
+                <span className="text-amber-600">Contact your admin to assign a caller ID.</span>
+              </div>
+            ) : (
+              <div className="relative">
+                <select
+                  id="admin-dialer-did-select"
+                  value={selectedDid}
+                  onChange={e => setSelectedDid(e.target.value)}
+                  className="w-full appearance-none bg-slate-50/70 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-300 transition-all cursor-pointer pr-8"
+                >
+                  {dids.map(d => (
+                    <option key={d._id} value={d.did_number}>
+                      {d.did_number}{d.label ? ` · ${d.label}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            )}
           </div>
         )}
 
