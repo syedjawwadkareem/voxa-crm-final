@@ -671,9 +671,11 @@ export interface CapturedLead {
   form_id: string | null;
   form_name: string | null;
   source?: string | null;
-  lead_status: string;
-  assigned_agent: string | null;
+  lead_status?: string;
+  status?: string;
+  assigned_agent?: string | null;
   created_at: string;
+  raw_data?: any;
 }
 
 export interface LeadsStats {

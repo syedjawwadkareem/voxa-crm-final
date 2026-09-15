@@ -585,7 +585,9 @@ export function AdminDialer() {
                     source: 'Meta',
                     form_id: form?.id || '',
                     form_name: form?.name || 'Instant Form',
+                    lead_status: 'new',
                     status: 'New',
+                    assigned_agent: null,
                     created_at: l.created_time || new Date().toISOString(),
                     raw_data: raw
                   });
