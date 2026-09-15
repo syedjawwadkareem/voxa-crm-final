@@ -44,7 +44,7 @@ async function request<T>(
       : undefined,
   });
 
-  // Auto-refresh on 401
+// Auto-refresh on 401
   if (res.status === 401 && retry) {
     if (path === '/auth/login') {
       const json = await res.json().catch(() => ({}));
@@ -53,13 +53,15 @@ async function request<T>(
 
     const refreshed = await tryRefresh();
     if (refreshed) return request<T>(path, options, false);
-    clearSession();
-    // Redirect to whichever login applies
+    
+    // Refresh genuinely failed (e.g. refresh token expired after 7 days)
+    const portal = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin') ? 'admin' : 'customer';
+    clearSession(portal);
     if (typeof window !== 'undefined') {
       const href = window.location.pathname;
       if (!href.endsWith('/login')) {
-        const portal = href.startsWith('/admin') ? '/admin/login' : '/company/login';
-        window.location.href = portal;
+        const portalLogin = href.startsWith('/admin') ? '/admin/login' : '/company/login';
+        window.location.href = portalLogin;
       }
     }
     throw new Error('Session expired');
@@ -74,26 +76,38 @@ async function request<T>(
 
 // ── Token refresh ─────────────────────────────────────────────────────────────
 
+let refreshPromise: Promise<boolean> | null = null;
+
 async function tryRefresh(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
-  try {
-    const res = await fetch(`${BASE}/auth/refresh-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) return false;
-    const json = await res.json();
-    const { accessToken, refreshToken: newRefresh } = json.data ?? {};
-    if (accessToken && newRefresh) {
-      updateTokens(accessToken, newRefresh);
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
+  if (refreshPromise) {
+    return refreshPromise;
   }
+
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+    try {
+      const res = await fetch(`${BASE}/auth/refresh-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return false;
+      const json = await res.json();
+      const { accessToken, refreshToken: newRefresh } = json.data ?? {};
+      if (accessToken && newRefresh) {
+        updateTokens(accessToken, newRefresh);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -731,6 +745,11 @@ export interface CallAnalysisRecord {
 export const telephonyApi = {
   getCompanyCallLogs: () => {
     return api.get<ApiSuccess<{ logs: any[]; isCompanyAdmin: boolean; roleName: string }>>('/telephony/company/logs');
+  },
+
+  getAdminMasterLogs: (companyId?: string) => {
+    const qs = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return api.get<ApiSuccess<{ logs: any[]; totalAll: number; totalFiltered: number }>>(`/telephony/admin/logs${qs}`);
   },
 
   checkRecording: (params: { uniqueid?: string; phone?: string; filename?: string }) => {

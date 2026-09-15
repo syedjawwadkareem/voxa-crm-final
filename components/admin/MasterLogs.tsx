@@ -33,6 +33,8 @@ export interface CallRecord {
   uniqueid?: string;
   queue?: string;
   companyId?: string;
+  companyName?: string | null;
+  userName?: string | null;
 }
 
 // API raw statuses
@@ -117,9 +119,14 @@ function getStatusConfig(status: string) {
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-const API_BASE = 'http://172.16.17.127/api/api.php';
+async function fetchAdminCallLogs(): Promise<CallRecord[]> {
+  const res = await telephonyApi.getAdminMasterLogs();
+  return res.data?.logs || [];
+}
 
-async function fetchCallLogs(): Promise<CallRecord[]> {
+// Fallback: direct Asterisk fetch if backend is unreachable
+const API_BASE = 'http://172.16.17.127/api/api.php';
+async function fetchCallLogsFallback(): Promise<CallRecord[]> {
   const authRes = await fetch(`${API_BASE}?action=GenerateAuthKey&user=apiUAsk&pass=7xK9pQ2mW5vB`);
   const authData = await authRes.json();
   if (authData.status !== 'success') throw new Error(authData.message || 'Auth failed');
@@ -252,9 +259,16 @@ export function MasterLogs() {
   const refresh = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      setLogs(await fetchCallLogs());
+      setLogs(await fetchAdminCallLogs());
     }
-    catch (e: any) { setError(e.message ?? 'Failed to load call logs'); }
+    catch (e: any) {
+      // Fallback to direct Asterisk if backend fails
+      try {
+        setLogs(await fetchCallLogsFallback());
+      } catch (fallbackErr: any) {
+        setError(e.message ?? 'Failed to load call logs');
+      }
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -305,7 +319,7 @@ export function MasterLogs() {
     // Search
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      if (![log.callerid, log.destination, log.extension, log.context, log.status, log.uniqueid].filter(Boolean).join(' ').toLowerCase().includes(q)) return false;
+      if (![log.callerid, log.destination, log.extension, log.context, log.status, log.uniqueid, log.userName, log.companyName].filter(Boolean).join(' ').toLowerCase().includes(q)) return false;
     }
     return true;
   }), [logs, archived, viewStatus, callStatus, companyId, startDate, endDate, searchTerm]);
@@ -379,7 +393,7 @@ export function MasterLogs() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white relative" style={{ fontFamily: 'Inter, sans-serif', minHeight: '100%' }}>
+    <div className="flex flex-col h-full bg-white relative overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }}>
 
       {/* ── Toast Notification ─────────────────────────────────────────────── */}
       {toastMessage && (
@@ -397,7 +411,7 @@ export function MasterLogs() {
       )}
 
       {/* ── Filter Bar ─────────────────────────────────────────────────────── */}
-      <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap gap-3 items-end relative z-20">
+      <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap gap-3 items-end relative z-20 flex-shrink-0">
 
         {/* Company Filter */}
         <div className="relative filter-dropdown-container">
@@ -575,7 +589,7 @@ export function MasterLogs() {
 
       {/* ── Bulk Action Bar ────────────────────────────────────────────────── */}
       {someChecked && (
-        <div className="px-6 py-2 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
+        <div className="px-6 py-2 bg-teal-50 border-b border-teal-100 flex items-center gap-3 flex-shrink-0">
           <span className="text-xs font-semibold text-teal-700">{selectedIds.size} selected</span>
           <button onClick={bulkArchive}
             className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-white border border-teal-200 text-teal-700 hover:bg-teal-50 transition-colors">
@@ -588,7 +602,7 @@ export function MasterLogs() {
       )}
 
       {/* ── Table ──────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto border-t border-slate-100">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 gap-3">
             <RefreshCw size={28} className="animate-spin text-teal-500" />
@@ -614,8 +628,8 @@ export function MasterLogs() {
             <p className="text-xs text-slate-400 mt-1">Try adjusting your filters</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
+          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead className="sticky top-0 z-10 bg-slate-50 shadow-2xs">
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                 <th style={TH}>
                   <input
@@ -627,6 +641,8 @@ export function MasterLogs() {
                   />
                 </th>
                 <th style={TH}>Date &amp; Time ↑</th>
+                <th style={TH}>Company</th>
+                <th style={TH}>User / Agent</th>
                 <th style={TH}>Unique ID / Ext</th>
                 <th style={TH}>Customer Number</th>
                 <th style={TH}>Direction</th>
@@ -655,6 +671,30 @@ export function MasterLogs() {
                       <span style={{ color: '#334155', fontWeight: 500, fontSize: 12 }}>
                         {formatDateTime(log.start_time)}
                       </span>
+                    </td>
+                    {/* Company column */}
+                    <td style={TD}>
+                      {log.companyName ? (
+                        <div className="flex flex-col">
+                          <span style={{ color: '#1e293b', fontWeight: 600, fontSize: 12 }}>{log.companyName}</span>
+                          {log.companyId && (
+                            <span style={{ color: '#94a3b8', fontSize: 10 }}>{log.companyId.slice(-6)}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>
+                      )}
+                    </td>
+                    {/* User / Agent column */}
+                    <td style={TD}>
+                      {log.userName ? (
+                        <div className="flex flex-col">
+                          <span style={{ color: '#0f766e', fontWeight: 600, fontSize: 12 }}>{log.userName}</span>
+                          <span style={{ color: '#94a3b8', fontSize: 10 }}>Ext: {log.extension || '—'}</span>
+                        </div>
+                      ) : (
+                        <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>
+                      )}
                     </td>
                     <td style={TD}>
                       <div className="flex flex-col">
@@ -712,7 +752,7 @@ export function MasterLogs() {
                           id={`ml-listen-${log.id}`}
                           icon={isCheckingThis ? <RefreshCw size={11} className="animate-spin" /> : <Headphones size={11} />}
                           label={isCheckingThis ? 'Loading…' : 'Listen'}
-                          color="#8b5cf6"
+                          color="#0f8f7a"
                           disabled={isCheckingThis}
                           onClick={() => handleListenClick(log)}
                         />
