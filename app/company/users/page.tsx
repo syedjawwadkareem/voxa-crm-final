@@ -9,8 +9,10 @@ import { CompanyHeader } from '@/components/company/CompanyHeader';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { companyUsersApi, rolesApi } from '@/lib/api';
+import { hasPermission } from '@/lib/auth';
 import type { CompanyUser, Role, CreateCompanyUserPayload } from '@/lib/types';
 import { confirmModal } from '@/components/ui/NotificationProvider';
 
@@ -143,6 +145,19 @@ export default function CompanyUsersPage() {
     name.split(/\s+/).map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
 
   const avatarColors = ['#0f8f7a', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+
+  if (!hasPermission('users:read')) {
+    return (
+      <div>
+        <CompanyHeader
+          title="Team Users"
+          subtitle="Manage your company's team members"
+          onMenuClick={() => {}}
+        />
+        <AccessDenied module="Team Users" requiredPermission="users:read" portal="company" />
+      </div>
+    );
+  }
 
   return (
     <div>

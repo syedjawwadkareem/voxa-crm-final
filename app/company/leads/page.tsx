@@ -14,6 +14,8 @@ import {
   type MessengerConversation, type MessengerMessage
 } from '@/lib/api';
 import { toast } from '@/components/ui/NotificationProvider';
+import { hasPermission } from '@/lib/auth';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 
 // ─── CallLog Modal ────────────────────────────────────────────────────────────
 function LeadCallLogModal({ lead, onClose }: { lead: CapturedLead, onClose: () => void }) {
@@ -884,6 +886,19 @@ export default function LeadManagementPage() {
     const startIndex = (currentPage - 1) * LEADS_PER_PAGE;
     return filteredLeads.slice(startIndex, startIndex + LEADS_PER_PAGE);
   }, [filteredLeads, currentPage]);
+
+  if (!hasPermission('leads:read')) {
+    return (
+      <div>
+        <CompanyHeader
+          title="Lead Management"
+          subtitle="View and manage captured leads, manual CSV imports, Facebook Messenger, and Meta Ad Campaigns"
+          onMenuClick={() => {}}
+        />
+        <AccessDenied module="Lead Management" requiredPermission="leads:read" portal="company" />
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -9,10 +9,11 @@ import { usePermissions } from '@/hooks/usePermissions';
 interface PermissionCheckboxGridProps {
   selected: string[];
   onChange: (permissions: string[]) => void;
+  scope?: 'admin' | 'company';
 }
 
-export function PermissionCheckboxGrid({ selected, onChange }: PermissionCheckboxGridProps) {
-  const { grouped, loading, error } = usePermissions();
+export function PermissionCheckboxGrid({ selected, onChange, scope }: PermissionCheckboxGridProps) {
+  const { grouped, loading, error } = usePermissions(scope);
 
   function toggle(perm: string) {
     if (selected.includes(perm)) {

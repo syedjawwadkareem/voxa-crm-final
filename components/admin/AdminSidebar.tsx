@@ -2,10 +2,11 @@
 
 // ─── Admin Sidebar ────────────────────────────────────────────────────────────
 // Navigation for the Admin Portal (Voxa internal staff).
-// Nav items are filtered based on the user's permissions.
+// All modules remain visible in Admin Portal. Restricted modules show a lock indicator
+// and navigating to them displays a clear "Access Denied" screen with required permissions.
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Building2, Users, ShieldCheck, CreditCard, LogOut, X, Phone, ListFilter, Layers, Hash, Bot } from 'lucide-react';
+import { LayoutDashboard, Building2, ShieldCheck, CreditCard, LogOut, X, ListFilter, Layers, Hash, Bot, Lock } from 'lucide-react';
 import { authApi } from '@/lib/api';
 import { clearSession, getUser, hasPermission } from '@/lib/auth';
 import type { LucideIcon } from 'lucide-react';
@@ -19,14 +20,14 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard',    label: 'Dashboard',      href: '/admin/dashboard',        icon: LayoutDashboard },
-  { key: 'companies',   label: 'Companies',       href: '/admin/companies',        icon: Building2,   permission: 'companies:read' },
-  { key: 'omnichannel', label: 'Omnichannel',     href: '/admin/omnichannel',      icon: Layers },
-  { key: 'security',    label: 'Security',        href: '/admin/security',         icon: ShieldCheck },
-  { key: 'plans',       label: 'Billing Plans',   href: '/admin/plans',            icon: CreditCard,  permission: 'billing:update' },
-  { key: 'master-logs',     label: 'Master Logs',     href: '/admin/master-logs',         icon: ListFilter },
-  { key: 'did-management',  label: 'DID Management',  href: '/admin/did-management',      icon: Hash },
-  { key: 'ai-agents',       label: 'AI Agents',        href: '/admin/ai-agents',           icon: Bot  },
+  { key: 'dashboard',      label: 'Dashboard',      href: '/admin/dashboard',        icon: LayoutDashboard },
+  { key: 'companies',      label: 'Companies',      href: '/admin/companies',        icon: Building2,     permission: 'companies:read' },
+  { key: 'omnichannel',    label: 'Omnichannel',    href: '/admin/omnichannel',      icon: Layers,        permission: 'integrations:read' },
+  { key: 'security',       label: 'Security',       href: '/admin/security',         icon: ShieldCheck,   permission: 'roles:read' },
+  { key: 'plans',          label: 'Billing Plans',  href: '/admin/plans',            icon: CreditCard,    permission: 'billing:read' },
+  { key: 'master-logs',    label: 'Master Logs',    href: '/admin/master-logs',      icon: ListFilter,    permission: 'calls:read' },
+  { key: 'did-management', label: 'DID Management', href: '/admin/did-management',   icon: Hash,          permission: 'did:read' },
+  { key: 'ai-agents',      label: 'AI Agents',      href: '/admin/ai-agents',        icon: Bot,           permission: 'agents:read' },
 ];
 
 export function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -34,9 +35,9 @@ export function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const router = useRouter();
   const user = getUser();
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.permission || hasPermission(item.permission),
-  );
+  // In Admin Portal, all modules remain visible in the menu.
+  // Access control is enforced on-click / on-page via AccessDenied.
+  const visibleItems = NAV_ITEMS;
 
   async function handleLogout() {
     try {
@@ -109,19 +110,27 @@ export function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               .filter((it) => pathname === it.href || pathname.startsWith(it.href + '/'))
               .sort((a, b) => b.href.length - a.href.length)[0];
             const isActive = bestMatch?.key === item.key;
+            const isPermitted = !item.permission || hasPermission(item.permission);
             const Icon = item.icon;
+
             return (
               <div
                 key={item.key}
                 id={`admin-nav-${item.key}`}
-                className={`sidebar-link ${isActive ? 'active' : ''}`}
+                className={`sidebar-link ${isActive ? 'active' : ''} flex items-center justify-between group`}
                 onClick={() => { router.push(item.href); onClose(); }}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && router.push(item.href)}
+                title={!isPermitted ? `Restricted (requires ${item.permission})` : undefined}
               >
-                <Icon size={16} strokeWidth={1.75} />
-                <span>{item.label}</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Icon size={16} strokeWidth={1.75} className={!isPermitted ? 'text-slate-400' : ''} />
+                  <span className={`truncate ${!isPermitted ? 'text-slate-400' : ''}`}>{item.label}</span>
+                </div>
+                {!isPermitted && (
+                  <Lock size={12} className="text-slate-500 group-hover:text-amber-400 transition-colors flex-shrink-0" />
+                )}
               </div>
             );
           })}

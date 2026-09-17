@@ -9,8 +9,10 @@ import { Pencil, Trash2, Plus } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Modal } from '@/components/ui/Modal';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { billingApi } from '@/lib/api';
+import { hasPermission } from '@/lib/auth';
 import type { Plan } from '@/lib/types';
 import { confirmModal } from '@/components/ui/NotificationProvider';
 
@@ -205,6 +207,19 @@ export default function AdminPlansPage() {
       </div>
     </>
   );
+
+  if (!hasPermission('billing:read') && !hasPermission('billing:update')) {
+    return (
+      <div>
+        <AdminHeader
+          title="Billing Plans"
+          subtitle="Manage available billing plans for companies"
+          onMenuClick={() => {}}
+        />
+        <AccessDenied module="Billing Plans" requiredPermission="billing:read" portal="admin" />
+      </div>
+    );
+  }
 
   return (
     <div>

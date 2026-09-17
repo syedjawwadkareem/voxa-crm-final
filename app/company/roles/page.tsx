@@ -8,9 +8,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { CompanyHeader } from '@/components/company/CompanyHeader';
 import { Modal } from '@/components/ui/Modal';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 import { PermissionCheckboxGrid } from '@/components/ui/PermissionCheckboxGrid';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { rolesApi } from '@/lib/api';
+import { hasPermission } from '@/lib/auth';
 import type { Role, CreateRolePayload } from '@/lib/types';
 import { confirmModal } from '@/components/ui/NotificationProvider';
 
@@ -112,6 +114,18 @@ export default function CompanyRolesPage() {
     }
   }
 
+  if (!hasPermission('roles:read')) {
+    return (
+      <div>
+        <CompanyHeader
+          title="Roles & Permissions"
+          subtitle="Manage company-level roles"
+          onMenuClick={() => {}}
+        />
+        <AccessDenied module="Roles & Permissions" requiredPermission="roles:read" portal="company" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -206,6 +220,7 @@ export default function CompanyRolesPage() {
             <label className="text-xs font-medium">Permissions</label>
             <div className="mt-1">
               <PermissionCheckboxGrid
+                scope="company"
                 selected={createForm.permissions}
                 onChange={(permissions) => setCreateForm({ ...createForm, permissions })}
               />
@@ -233,6 +248,7 @@ export default function CompanyRolesPage() {
             <label className="text-xs font-medium">Permissions</label>
             <div className="mt-1">
               <PermissionCheckboxGrid
+                scope="company"
                 selected={editForm.permissions}
                 onChange={(permissions) => setEditForm({ ...editForm, permissions })}
               />

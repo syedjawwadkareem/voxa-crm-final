@@ -13,6 +13,8 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { hasPermission } from '@/lib/auth';
 import {
   adminIntegrationsApi,
   type AdminOmnichannelStats,
@@ -138,6 +140,19 @@ export default function AdminOmnichannelPage() {
 
     return true;
   });
+
+  if (!hasPermission('integrations:read')) {
+    return (
+      <div>
+        <AdminHeader
+          title="Omnichannel"
+          subtitle="Platform-wide channel adoption, integration health & company configs"
+          onMenuClick={() => {}}
+        />
+        <AccessDenied module="Omnichannel & Integrations" requiredPermission="integrations:read" portal="admin" />
+      </div>
+    );
+  }
 
   return (
     <div>

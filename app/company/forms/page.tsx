@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { CompanyHeader } from '@/components/company/CompanyHeader';
 import { integrationsApi, type MetaForm, type MetaFormLead } from '@/lib/api';
+import { hasPermission } from '@/lib/auth';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 
 // ─── Form Detail Modal ────────────────────────────────────────────────────────
 
@@ -195,6 +197,19 @@ export default function FormsPage() {
     f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     f.id.includes(searchQuery)
   );
+
+  if (!hasPermission('forms:read')) {
+    return (
+      <div>
+        <CompanyHeader
+          title="Forms"
+          subtitle="Manage and view your lead capture forms"
+          onMenuClick={() => {}}
+        />
+        <AccessDenied module="Forms Management" requiredPermission="forms:read" portal="company" />
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -2,7 +2,7 @@
 
 // ─── usePermissions Hook ──────────────────────────────────────────────────────
 // React hook that fetches the live permission list from the backend.
-// Use this in any component that renders a permission checkbox grid.
+// Supports portal scoping ('admin' or 'company').
 
 import { useState, useEffect } from 'react';
 import { fetchPermissions, fetchPermissionsGrouped, type PermissionDoc } from '@/lib/permissions';
@@ -14,7 +14,7 @@ interface UsePermissionsReturn {
   error: string;
 }
 
-export function usePermissions(): UsePermissionsReturn {
+export function usePermissions(scope?: 'admin' | 'company'): UsePermissionsReturn {
   const [permissions, setPermissions] = useState<PermissionDoc[]>([]);
   const [grouped, setGrouped] = useState<Record<string, PermissionDoc[]>>({});
   const [loading, setLoading] = useState(true);
@@ -22,10 +22,12 @@ export function usePermissions(): UsePermissionsReturn {
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setError('');
       try {
         const [flat, grp] = await Promise.all([
-          fetchPermissions(),
-          fetchPermissionsGrouped(),
+          fetchPermissions(scope),
+          fetchPermissionsGrouped(scope),
         ]);
         setPermissions(flat);
         setGrouped(grp);
@@ -36,7 +38,7 @@ export function usePermissions(): UsePermissionsReturn {
       }
     }
     load();
-  }, []);
+  }, [scope]);
 
   return { permissions, grouped, loading, error };
 }

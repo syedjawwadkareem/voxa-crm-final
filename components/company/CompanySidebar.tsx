@@ -19,18 +19,18 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard',    label: 'Dashboard',    href: '/company/dashboard',    icon: LayoutDashboard },
-  { key: 'users',        label: 'Users',        href: '/company/users',        icon: Users,       permission: 'users:read' },
-  { key: 'roles',        label: 'Roles',        href: '/company/roles',        icon: ShieldCheck, permission: 'roles:read' },
-  { key: 'omnichannel',  label: 'Omnichannel',  href: '/company/omnichannel',  icon: Layers },
-  { key: 'ivr',          label: 'IVR & Campaigns', href: '/company/ivr',       icon: PhoneCall },
-  { key: 'dids',         label: 'DID Management',href: '/company/dids',         icon: Hash },
-  { key: 'ai-agents',   label: 'AI Agents',    href: '/company/ai-agents',    icon: Bot  },
-  { key: 'logs',         label: 'Logs',         href: '/company/logs',         icon: PhoneCall },
-  { key: 'logs-detailed', label: 'Detailed View', href: '/company/logs/detailed', icon: FileText },
-  { key: 'forms',        label: 'Forms',        href: '/company/forms',        icon: ClipboardList },
-  { key: 'leads',        label: 'Lead Management', href: '/company/leads',     icon: Users },
-  { key: 'orders',       label: 'Order Management', href: '/company/orders',   icon: ClipboardList },
+  { key: 'dashboard',     label: 'Dashboard',        href: '/company/dashboard',     icon: LayoutDashboard },
+  { key: 'users',         label: 'Users',            href: '/company/users',         icon: Users,         permission: 'users:read' },
+  { key: 'roles',         label: 'Roles',            href: '/company/roles',         icon: ShieldCheck,   permission: 'roles:read' },
+  { key: 'omnichannel',   label: 'Omnichannel',      href: '/company/omnichannel',   icon: Layers,        permission: 'integrations:read' },
+  { key: 'ivr',           label: 'IVR & Campaigns',  href: '/company/ivr',           icon: PhoneCall,     permission: 'campaigns:read' },
+  { key: 'dids',          label: 'DID Management',   href: '/company/dids',          icon: Hash,          permission: 'did:read' },
+  { key: 'ai-agents',     label: 'AI Agents',        href: '/company/ai-agents',     icon: Bot,           permission: 'agents:read' },
+  { key: 'logs',          label: 'Logs',             href: '/company/logs',          icon: PhoneCall,     permission: 'calls:read' },
+  { key: 'logs-detailed', label: 'Detailed View',    href: '/company/logs/detailed', icon: FileText,      permission: 'calls:read' },
+  { key: 'forms',         label: 'Forms',            href: '/company/forms',         icon: ClipboardList, permission: 'forms:read' },
+  { key: 'leads',         label: 'Lead Management',  href: '/company/leads',         icon: Users,         permission: 'leads:read' },
+  { key: 'orders',        label: 'Order Management', href: '/company/orders',        icon: ClipboardList, permission: 'orders:read' },
 ];
 
 export function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {

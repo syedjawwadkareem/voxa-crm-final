@@ -10,8 +10,10 @@ import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PermissionGuard } from '@/components/ui/PermissionGuard';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { companiesApi, billingApi } from '@/lib/api';
+import { hasPermission } from '@/lib/auth';
 import type { Company, CreateCompanyPayload, CompanyStatus, BillingModel, Plan, TenantInfo } from '@/lib/types';
 
 const EMPTY_FORM: CreateCompanyPayload = {
@@ -218,6 +220,19 @@ export default function AdminCompaniesPage() {
   const filtered = companies.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()),
   );
+
+  if (!hasPermission('companies:read')) {
+    return (
+      <div>
+        <AdminHeader
+          title="Companies"
+          subtitle="Manage all client companies on the Voxa platform"
+          onMenuClick={() => { }}
+        />
+        <AccessDenied module="Companies" requiredPermission="companies:read" portal="admin" />
+      </div>
+    );
+  }
 
   return (
     <div>

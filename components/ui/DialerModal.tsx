@@ -3,9 +3,15 @@
 import React, { useState } from 'react';
 import { Phone, X } from 'lucide-react';
 import { AdminDialer } from '@/components/admin/AdminDialer';
+import { hasPermission } from '@/lib/auth';
 
 export function DialerModal() {
   const [isOpen, setIsOpen] = useState(false);
+
+  // If the user does not have dialer:access permission, do not render the dialer
+  if (!hasPermission('dialer:access')) {
+    return null;
+  }
 
   return (
     <>

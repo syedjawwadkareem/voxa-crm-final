@@ -21,8 +21,9 @@ import {
   type PlatformIntegration,
   type PlatformType
 } from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { getUser, hasPermission } from '@/lib/auth';
 import { toast, confirmModal } from '@/components/ui/NotificationProvider';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1295,6 +1296,19 @@ export default function CompanyOmnichannelPage() {
       ];
 
   const currentTab = tabs.find(t => t.key === activeTab) || tabs[0];
+
+  if (!hasPermission('integrations:read')) {
+    return (
+      <div>
+        <CompanyHeader
+          title="Omnichannel"
+          subtitle={isEcommerce ? "Connect your eCommerce store, marketplace, and communication channels" : "Connect and manage your communication channels"}
+          onMenuClick={() => { }}
+        />
+        <AccessDenied module="Omnichannel Integrations" requiredPermission="integrations:read" portal="company" />
+      </div>
+    );
+  }
 
   return (
     <div>

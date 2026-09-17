@@ -7,6 +7,8 @@ import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { ordersApi } from '@/lib/api';
+import { hasPermission } from '@/lib/auth';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 import type { Order, CreateOrderPayload, OrderItem } from '@/lib/types';
 
 export default function CompanyOrdersPage() {
@@ -99,6 +101,19 @@ export default function CompanyOrdersPage() {
     o.customerDetails.name.toLowerCase().includes(search.toLowerCase()) ||
     o._id.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (!hasPermission('orders:read')) {
+    return (
+      <div>
+        <CompanyHeader
+          title="Order Management"
+          subtitle="Manage customer orders, shipments, and payments"
+          onMenuClick={() => {}}
+        />
+        <AccessDenied module="Order Management" requiredPermission="orders:read" portal="company" />
+      </div>
+    );
+  }
 
   return (
     <div>

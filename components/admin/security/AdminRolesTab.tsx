@@ -205,6 +205,7 @@ export function AdminRolesTab() {
             <label className="text-xs font-medium">Permissions</label>
             <div className="mt-1">
               <PermissionCheckboxGrid
+                scope="admin"
                 selected={createForm.permissions}
                 onChange={(permissions) => setCreateForm({ ...createForm, permissions })}
               />
@@ -232,6 +233,7 @@ export function AdminRolesTab() {
             <label className="text-xs font-medium">Permissions</label>
             <div className="mt-1">
               <PermissionCheckboxGrid
+                scope="admin"
                 selected={editForm.permissions}
                 onChange={(permissions) => setEditForm({ ...editForm, permissions })}
               />

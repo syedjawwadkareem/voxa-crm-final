@@ -1,6 +1,6 @@
 // ─── Frontend Permission Fetcher ──────────────────────────────────────────────
 // Fetches the live permission list from the backend DB.
-// Replaces the hardcoded PERMISSION_LIST constant in lib/types.ts for UI use.
+// Supports portal scoping ('admin' or 'company') to filter permissions.
 
 import { api } from './api';
 import type { ApiSuccess } from './types';
@@ -10,28 +10,33 @@ export interface PermissionDoc {
   module: string;
   action: string;
   description?: string;
+  scope?: 'admin' | 'company' | 'both';
 }
 
-// In-memory cache so we only hit the API once per page session
-let _cache: PermissionDoc[] | null = null;
+// In-memory cache by scope
+const _cacheMap: Record<string, PermissionDoc[]> = {};
 
 /**
- * Fetches all permissions from the backend and returns them as an array.
- * Results are cached in memory for the lifetime of the page.
+ * Fetches permissions from the backend (optionally filtered by scope).
+ * Results are cached in memory.
  */
-export async function fetchPermissions(): Promise<PermissionDoc[]> {
-  if (_cache) return _cache;
-  const res = await api.get<ApiSuccess<PermissionDoc[]>>('/permissions');
-  _cache = res.data ?? [];
-  return _cache;
+export async function fetchPermissions(scope?: 'admin' | 'company'): Promise<PermissionDoc[]> {
+  const cacheKey = scope || 'all';
+  if (_cacheMap[cacheKey]) return _cacheMap[cacheKey];
+
+  const query = scope ? `?scope=${scope}` : '';
+  const res = await api.get<ApiSuccess<PermissionDoc[]>>(`/permissions${query}`);
+  const data = res.data ?? [];
+  _cacheMap[cacheKey] = data;
+  return data;
 }
 
 /**
- * Returns permissions grouped by module.
+ * Returns permissions grouped by module, optionally filtered by scope.
  * e.g. { companies: [...], users: [...] }
  */
-export async function fetchPermissionsGrouped(): Promise<Record<string, PermissionDoc[]>> {
-  const perms = await fetchPermissions();
+export async function fetchPermissionsGrouped(scope?: 'admin' | 'company'): Promise<Record<string, PermissionDoc[]>> {
+  const perms = await fetchPermissions(scope);
   return perms.reduce<Record<string, PermissionDoc[]>>((acc, p) => {
     if (!acc[p.module]) acc[p.module] = [];
     acc[p.module].push(p);
@@ -41,5 +46,7 @@ export async function fetchPermissionsGrouped(): Promise<Record<string, Permissi
 
 /** Clears the in-memory cache (useful for testing or forced refresh). */
 export function clearPermissionCache() {
-  _cache = null;
+  for (const k of Object.keys(_cacheMap)) {
+    delete _cacheMap[k];
+  }
 }

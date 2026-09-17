@@ -8,6 +8,8 @@ import { CampaignDetail } from '@/components/company/ivr/CampaignDetail';
 import { AudioLibrary } from '@/components/company/ivr/AudioLibrary';
 import { List, Plus, Music } from 'lucide-react';
 import type { AudioFile } from '@/lib/api';
+import { hasPermission } from '@/lib/auth';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 
 type ActiveTab = 'list' | 'audio' | 'create' | 'detail';
 
@@ -27,6 +29,19 @@ export default function IVRPage() {
     { id: 'audio',  label: 'Audio Library',  icon: <Music size={16} /> },
     { id: 'create', label: 'Create Campaign', icon: <Plus size={16} /> },
   ];
+
+  if (!hasPermission('campaigns:read')) {
+    return (
+      <div>
+        <CompanyHeader
+          title="IVR & Campaigns"
+          subtitle="Manage your interactive voice responses and automated calling campaigns"
+          onMenuClick={() => {}}
+        />
+        <AccessDenied module="IVR & Campaigns" requiredPermission="campaigns:read" portal="company" />
+      </div>
+    );
+  }
 
   return (
     <div>
