@@ -9,8 +9,8 @@ import {
   CheckCircle2, Clock, PhoneOff, Voicemail, PhoneCall, ExternalLink,
   Settings2, History, Info, Building2,
 } from 'lucide-react';
-import { aiAgentsApi } from '@/lib/api';
-import type { AgentConfig, AiCall, CreateAgentConfigPayload, AiCallStatus } from '@/lib/api';
+import { aiAgentsApi, didsApi } from '@/lib/api';
+import type { AgentConfig, AiCall, CreateAgentConfigPayload, AiCallStatus, Did } from '@/lib/api';
 import { toast, confirmModal } from '@/components/ui/NotificationProvider';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -114,10 +114,20 @@ function ConfigForm({ initial, onClose, onSaved }: { initial?: AgentConfig | nul
     }
     setSaving(true); setErr('');
     try {
+      const sanitized: Partial<CreateAgentConfigPayload> = {
+        ...form,
+        name: form.name?.trim(),
+        tone: form.tone?.trim(),
+        script: form.script?.trim(),
+        voice: form.voice?.trim(),
+        greeting_message: form.greeting_message?.trim() || undefined,
+        goodbye_message: form.goodbye_message?.trim() || undefined,
+        voicemail_message: form.voicemail_detection_enabled ? (form.voicemail_message?.trim() || 'Please leave a message after the tone.') : undefined,
+      };
       if (initial) {
-        await aiAgentsApi.companyUpdateConfig(initial._id, form);
+        await aiAgentsApi.companyUpdateConfig(initial._id, sanitized);
       } else {
-        await aiAgentsApi.companyCreateConfig(form);
+        await aiAgentsApi.companyCreateConfig(sanitized);
       }
       onSaved(); onClose();
     } catch (e: any) { setErr(e.message); }
@@ -222,14 +232,28 @@ function ConfigForm({ initial, onClose, onSaved }: { initial?: AgentConfig | nul
 
 function TriggerCallModal({ config, onClose, onTriggered }: { config: AgentConfig; onClose: () => void; onTriggered: () => void }) {
   const [form, setForm] = useState({ phone_number: '', from_number: '' });
+  const [dids, setDids] = useState<Did[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    didsApi.getMine()
+      .then(res => {
+        const list = res.data ?? [];
+        setDids(list);
+        if (list.length > 0) {
+          setForm(f => ({ ...f, from_number: f.from_number || list[0].number }));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function go() {
     if (!form.phone_number.trim() || !form.from_number.trim()) { setErr('Both fields are required'); return; }
     setLoading(true); setErr('');
     try {
       await aiAgentsApi.companyTriggerCall({ agent_config_id: config._id, ...form });
+      toast.success('Outbound AI call queued successfully!');
       onTriggered(); onClose();
     } catch (e: any) { setErr(e.message); }
     finally { setLoading(false); }
@@ -247,13 +271,44 @@ function TriggerCallModal({ config, onClose, onTriggered }: { config: AgentConfi
         </div>
         <div className="p-6 space-y-4">
           {err && <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2"><AlertCircle size={14} />{err}</div>}
+          
+          {!config.pipeline_config_id && (
+            <div className="flex items-start gap-2 text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <Info size={14} className="flex-shrink-0 mt-0.5 text-amber-600" />
+              <span>This agent will be registered automatically with the Voxa AI Pipeline upon dialing.</span>
+            </div>
+          )}
+
           <div className="flex items-start gap-2 text-blue-700 text-sm bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
             <Info size={14} className="flex-shrink-0 mt-0.5" />
             <span>Result arrives via webhook. Check Call History after the call ends.</span>
           </div>
-          <Field label="Caller ID (From Number)" required hint="03XXXXXXXXX format">
-            <input className={inputCls} placeholder="03001234567" value={form.from_number} onChange={e => setForm(f => ({ ...f, from_number: e.target.value }))} />
+
+          <Field label="Caller ID (From Number)" required hint="Select an assigned DID or enter number">
+            {dids.length > 0 ? (
+              <div className="space-y-1.5">
+                <select
+                  className={selectCls}
+                  value={form.from_number}
+                  onChange={e => setForm(f => ({ ...f, from_number: e.target.value }))}
+                >
+                  <option value="">Select a DID number...</option>
+                  {dids.map(d => (
+                    <option key={d._id} value={d.number}>{d.number} {d.allocatedToUser ? `(${d.allocatedToUser.fullName})` : ''}</option>
+                  ))}
+                </select>
+                <input
+                  className={inputCls}
+                  placeholder="Or enter custom Caller ID / extension"
+                  value={form.from_number}
+                  onChange={e => setForm(f => ({ ...f, from_number: e.target.value }))}
+                />
+              </div>
+            ) : (
+              <input className={inputCls} placeholder="03001234567" value={form.from_number} onChange={e => setForm(f => ({ ...f, from_number: e.target.value }))} />
+            )}
           </Field>
+
           <Field label="Number to Call" required hint="03XXXXXXXXX format">
             <input className={inputCls} placeholder="03022011625" value={form.phone_number} onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))} />
           </Field>
@@ -311,11 +366,12 @@ function CallDetailPanel({ call, onClose }: { call: AiCall; onClose: () => void 
           )}
 
           {call.recording_url && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Recording</p>
-              <a href={call.recording_url} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 text-sm font-medium">
-                <ExternalLink size={13} /> Download WAV
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Call Recording</p>
+              <audio controls className="w-full h-9 mb-2" src={aiAgentsApi.getRecordingUrl(call._id, true)} />
+              <a href={aiAgentsApi.getRecordingUrl(call._id, true)} download={`call-${call._id}.wav`}
+                className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 text-xs font-medium">
+                <ExternalLink size={12} /> Download WAV Recording
               </a>
             </div>
           )}
@@ -367,6 +423,7 @@ export function CompanyAiAgents() {
   const [triggerConfig, setTriggerConfig] = useState<AgentConfig | null>(null);
   const [detailCall, setDetailCall] = useState<AiCall | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const loadConfigs = useCallback(async () => {
     setLoading(true); setError('');
@@ -403,6 +460,19 @@ export function CompanyAiAgents() {
       await loadConfigs();
     } catch (e: any) {
       toast.error('Error: ' + e.message);
+    }
+  }
+
+  async function handleSync(cfg: AgentConfig) {
+    setSyncingId(cfg._id);
+    try {
+      await aiAgentsApi.companySyncConfig(cfg._id);
+      toast.success(`Agent "${cfg.name}" registered with AI Pipeline!`);
+      await loadConfigs();
+    } catch (e: any) {
+      toast.error('Sync failed: ' + e.message);
+    } finally {
+      setSyncingId(null);
     }
   }
 
@@ -483,7 +553,18 @@ export function CompanyAiAgents() {
                           {cfg.hangup_enabled && <span className="text-xs bg-teal-50 text-teal-600 border border-teal-100 px-1.5 py-0.5 rounded">Hangup</span>}
                           {cfg.dtmf_enabled && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded">DTMF</span>}
                           {cfg.call_recording_enabled && <span className="text-xs bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded">Record</span>}
-                          {!cfg.pipeline_config_id && <span className="text-xs bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded">⚠ Not synced to pipeline</span>}
+                          {!cfg.pipeline_config_id && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleSync(cfg); }}
+                              disabled={syncingId === cfg._id}
+                              className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded transition-colors flex items-center gap-1 font-medium cursor-pointer"
+                              title="Sync this agent configuration with the Voxa AI Pipeline"
+                            >
+                              <RefreshCw size={11} className={syncingId === cfg._id ? 'animate-spin' : ''} />
+                              {syncingId === cfg._id ? 'Syncing…' : 'Sync to Pipeline'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -938,6 +938,7 @@ export const aiAgentsApi = {
   updateConfig:  (id: string, payload: Partial<CreateAgentConfigPayload>) =>
     api.put<ApiSuccess<AgentConfig>>(`/ai-agents/configs/${id}`, payload),
   deleteConfig:  (id: string) => api.delete<ApiSuccess<null>>(`/ai-agents/configs/${id}`),
+  syncConfig:    (id: string) => api.post<ApiSuccess<AgentConfig>>(`/ai-agents/configs/${id}/sync`, {}),
 
   listCalls:     (params?: { company_id?: string; status?: string }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
@@ -954,12 +955,18 @@ export const aiAgentsApi = {
   companyUpdateConfig: (id: string, payload: Partial<CreateAgentConfigPayload>) =>
     api.put<ApiSuccess<AgentConfig>>(`/ai-agents/company/configs/${id}`, payload),
   companyDeleteConfig: (id: string) => api.delete<ApiSuccess<null>>(`/ai-agents/company/configs/${id}`),
+  companySyncConfig:   (id: string) => api.post<ApiSuccess<AgentConfig>>(`/ai-agents/company/configs/${id}/sync`, {}),
 
   companyListCalls:   (status?: string) =>
     api.get<ApiSuccess<AiCall[]>>(`/ai-agents/company/calls${status ? `?status=${status}` : ''}`),
   companyGetCall:     (id: string) => api.get<ApiSuccess<AiCall>>(`/ai-agents/company/calls/${id}`),
   companyTriggerCall: (payload: { agent_config_id: string; phone_number: string; from_number: string }) =>
     api.post<ApiSuccess<AiCall>>('/ai-agents/company/calls/trigger', payload),
+
+  getRecordingUrl: (id: string, isCompany = false) => {
+    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+    return `${base}/ai-agents/${isCompany ? 'company/' : ''}calls/${id}/recording`;
+  },
 };
 
 // ─── CRM Call Recording Pipeline & Telephony Types ───────────────────────────

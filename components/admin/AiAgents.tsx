@@ -141,10 +141,20 @@ function ConfigForm({ companies, initial, onClose, onSaved }: ConfigFormProps) {
 
     setSaving(true); setErr('');
     try {
+      const sanitized: Partial<CreateAgentConfigPayload> = {
+        ...form,
+        name: form.name?.trim(),
+        tone: form.tone?.trim(),
+        script: form.script?.trim(),
+        voice: form.voice?.trim(),
+        greeting_message: form.greeting_message?.trim() || undefined,
+        goodbye_message: form.goodbye_message?.trim() || undefined,
+        voicemail_message: form.voicemail_detection_enabled ? (form.voicemail_message?.trim() || 'Please leave a message after the tone.') : undefined,
+      };
       if (initial) {
-        await aiAgentsApi.updateConfig(initial._id, form);
+        await aiAgentsApi.updateConfig(initial._id, sanitized);
       } else {
-        await aiAgentsApi.createConfig(form as CreateAgentConfigPayload);
+        await aiAgentsApi.createConfig(sanitized as CreateAgentConfigPayload);
       }
       onSaved();
       onClose();
@@ -386,11 +396,12 @@ function CallDetailPanel({ call, onClose }: { call: AiCall; onClose: () => void 
 
           {/* Recording */}
           {call.recording_url && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Recording</p>
-              <a href={call.recording_url} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 text-sm font-medium">
-                <ExternalLink size={13} /> Download WAV
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Call Recording</p>
+              <audio controls className="w-full h-9 mb-2" src={aiAgentsApi.getRecordingUrl(call._id, false)} />
+              <a href={aiAgentsApi.getRecordingUrl(call._id, false)} download={`call-${call._id}.wav`}
+                className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 text-xs font-medium">
+                <ExternalLink size={12} /> Download WAV Recording
               </a>
             </div>
           )}
@@ -507,6 +518,21 @@ export function AdminAiAgents() {
     }
   }
 
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  async function handleSyncConfig(cfg: AgentConfig) {
+    setSyncingId(cfg._id);
+    try {
+      await aiAgentsApi.syncConfig(cfg._id);
+      toast.success(`Agent "${cfg.name}" registered with AI Pipeline!`);
+      await loadConfigs();
+    } catch (e: any) {
+      toast.error('Sync failed: ' + e.message);
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
   const filteredConfigs = configs.filter(c =>
     c.name.toLowerCase().includes(configSearch.toLowerCase()) ||
     (typeof c.company_id === 'object' && c.company_id?.name?.toLowerCase().includes(configSearch.toLowerCase()))
@@ -619,10 +645,22 @@ export function AdminAiAgents() {
                           <span className="bg-teal-100 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full text-xs font-semibold">{cfg.voice}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-1 flex-wrap">
+                          <div className="flex gap-1 flex-wrap items-center">
                             {cfg.hangup_enabled         && <span className="text-xs bg-teal-50 text-teal-600 border border-teal-100 px-1.5 py-0.5 rounded">Hangup</span>}
                             {cfg.dtmf_enabled           && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded">DTMF</span>}
                             {cfg.call_recording_enabled && <span className="text-xs bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded">Record</span>}
+                            {!cfg.pipeline_config_id && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleSyncConfig(cfg); }}
+                                disabled={syncingId === cfg._id}
+                                className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded transition-colors flex items-center gap-1 font-medium cursor-pointer"
+                                title="Sync this agent configuration with the Voxa AI Pipeline"
+                              >
+                                <RefreshCw size={11} className={syncingId === cfg._id ? 'animate-spin' : ''} />
+                                {syncingId === cfg._id ? 'Syncing…' : 'Sync to Pipeline'}
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500">{fmt(cfg.createdAt)}</td>
