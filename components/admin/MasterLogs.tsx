@@ -11,7 +11,7 @@ import {
   RefreshCw, Search, ChevronLeft, ChevronRight,
   Eye, Headphones, Archive, RotateCcw, Filter,
   X, Activity, ArrowUpDown, Building2, AlertCircle,
-  Sparkles, CheckCircle, Users
+  Sparkles, CheckCircle, Users, DownloadCloud
 } from 'lucide-react';
 import { companiesApi, telephonyApi } from '@/lib/api';
 import { CallAnalysisModal } from './CallAnalysisModal';
@@ -36,6 +36,9 @@ export interface CallRecord {
   companyName?: string | null;
   userName?: string | null;
   leadName?: string | null;
+  recording_filename?: string | null;
+  has_recording?: boolean;
+  recording_stream_url?: string | null;
 }
 
 // API raw statuses
@@ -250,6 +253,7 @@ export function MasterLogs() {
   const [playingCall, setPlayingCall] = useState<AudioPlayerCall | null>(null);
   const [viewingCall, setViewingCall] = useState<CallRecord | null>(null);
   const [checkingAudioId, setCheckingAudioId] = useState<number | null>(null);
+  const [fetchingRecordings, setFetchingRecordings] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'error' | 'info' | 'success'; text: string } | null>(null);
 
   const showToast = (type: 'error' | 'info' | 'success', text: string) => {
@@ -354,6 +358,28 @@ export function MasterLogs() {
     return counts;
   }, [logs]);
 
+  // ── Handle Fetch Recordings Action ─────────────────────────────────────────
+  const handleFetchRecordings = async () => {
+    setFetchingRecordings(true);
+    try {
+      const res = await telephonyApi.fetchRecordings();
+      const info = res.data;
+      if (info) {
+        showToast(
+          'success',
+          info.message || `Processed ${info.total || 0} recordings: ${info.newly_downloaded || 0} downloaded, ${info.already_exists || 0} already present.`
+        );
+      } else {
+        showToast('success', 'Recordings fetched successfully.');
+      }
+      refresh();
+    } catch (err: any) {
+      showToast('error', err?.response?.data?.message || err.message || 'Failed to fetch recordings from Asterisk');
+    } finally {
+      setFetchingRecordings(false);
+    }
+  };
+
   // ── Handle Listen Action ───────────────────────────────────────────────────
   const handleListenClick = async (log: CallRecord) => {
     const targetUniqueId = log.uniqueid || String(log.id);
@@ -366,6 +392,11 @@ export function MasterLogs() {
       const res = await telephonyApi.checkRecording({
         uniqueid: targetUniqueId,
         phone: customerPhone,
+        destination: log.destination,
+        callerid: log.callerid,
+        start_time: log.start_time,
+        filename: log.recording_filename || undefined,
+        did: log.callerid || log.extension,
       });
 
       if (res.data && res.data.exists) {
@@ -379,10 +410,10 @@ export function MasterLogs() {
           duration: log.duration,
         });
       } else {
-        showToast('error', `Recording not found for call (${targetUniqueId}) in /var/data/`);
+        showToast('error', `Recording not found for call (${customerPhone || targetUniqueId})`);
       }
     } catch (err: any) {
-      showToast('error', `Recording not found for call (${targetUniqueId})`);
+      showToast('error', `Recording not found for call (${customerPhone || targetUniqueId})`);
     } finally {
       setCheckingAudioId(null);
     }
@@ -572,6 +603,16 @@ export function MasterLogs() {
         {/* Buttons */}
         <div className="flex gap-2 items-end">
           <button
+            onClick={handleFetchRecordings}
+            disabled={fetchingRecordings}
+            className="flex items-center gap-1.5 px-3.5 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 hover:bg-teal-100 active:scale-95 rounded-lg transition-all disabled:opacity-50"
+            style={{ height: 34 }}
+            title="Fetch and sync recordings from Asterisk (172.16.17.127)"
+          >
+            <DownloadCloud size={13} className={fetchingRecordings ? 'animate-bounce text-teal-600' : ''} />
+            <span>{fetchingRecordings ? 'Fetching…' : 'Fetch Recordings'}</span>
+          </button>
+          <button
             onClick={refresh}
             className="flex items-center gap-1.5 px-4 text-xs font-semibold text-white rounded-lg transition-all hover:opacity-90 active:scale-95"
             style={{ height: 34, background: 'linear-gradient(135deg, #0f8f7a, #22c1a5)' }}
@@ -753,12 +794,12 @@ export function MasterLogs() {
                           onClick={() => handleViewClick(log)}
                         />
 
-                        {/* Listen Action - checks var/data audio and plays */}
+                        {/* Listen Action - checks audio and plays */}
                         <ActionBtn
                           id={`ml-listen-${log.id}`}
                           icon={isCheckingThis ? <RefreshCw size={11} className="animate-spin" /> : <Headphones size={11} />}
-                          label={isCheckingThis ? 'Loading…' : 'Listen'}
-                          color="#0f8f7a"
+                          label={isCheckingThis ? 'Loading…' : (log.has_recording ? 'Listen ⏺' : 'Listen')}
+                          color={log.has_recording ? '#0d9488' : '#0f8f7a'}
                           disabled={isCheckingThis}
                           onClick={() => handleListenClick(log)}
                         />

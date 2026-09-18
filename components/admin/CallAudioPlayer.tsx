@@ -57,12 +57,19 @@ export function CallAudioPlayer({ call, onClose, onViewDetails }: CallAudioPlaye
     telephonyApi.checkRecording({
       uniqueid: targetUniqueId,
       phone: customerPhone,
+      destination: call.destination,
+      callerid: call.callerid,
+      start_time: call.start_time,
     })
       .then((res) => {
         if (res.data && res.data.exists) {
           const streamUrl = telephonyApi.getRecordingStreamUrl({
             uniqueid: targetUniqueId,
             phone: customerPhone,
+            destination: call.destination,
+            callerid: call.callerid,
+            start_time: call.start_time,
+            filename: res.data.filename,
           });
           setAudioSrc(streamUrl);
           setLoading(false);

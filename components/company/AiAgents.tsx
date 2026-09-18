@@ -242,7 +242,7 @@ function TriggerCallModal({ config, onClose, onTriggered }: { config: AgentConfi
         const list = res.data ?? [];
         setDids(list);
         if (list.length > 0) {
-          setForm(f => ({ ...f, from_number: f.from_number || list[0].number }));
+          setForm(f => ({ ...f, from_number: f.from_number || list[0].did_number || list[0].number || '' }));
         }
       })
       .catch(() => {});

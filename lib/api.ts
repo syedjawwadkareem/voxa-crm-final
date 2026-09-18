@@ -785,11 +785,13 @@ export interface DidAssignedUser {
 export interface Did {
   _id: string;
   did_number: string;
+  number?: string;
   label: string;
   notes: string;
   status: 'available' | 'assigned' | 'released';
   company_id: { _id: string; name: string; status: string } | null;
   assigned_user_id?: DidAssignedUser | null;
+  allocatedToUser?: DidAssignedUser | null;
   campaign_id: string | null;
   ai_flow_id: string | null;
   context: string;
@@ -831,6 +833,7 @@ export const didsApi = {
 
   // Company (own DIDs)
   listMine: () => api.get<ApiSuccess<Did[]>>('/dids/company/mine'),
+  getMine: () => api.get<ApiSuccess<Did[]>>('/dids/company/mine'),
   getMineHistory: (didId: string) =>
     api.get<ApiSuccess<DidHistoryRow[]>>(`/dids/company/mine/${didId}/history`),
   assignUserToMine: (didId: string, user_id: string | null) =>
@@ -1047,13 +1050,52 @@ export const telephonyApi = {
     return api.get<ApiSuccess<{ logs: any[]; totalAll: number; totalFiltered: number }>>(`/telephony/admin/logs${qs}`);
   },
 
-  checkRecording: (params: { uniqueid?: string; phone?: string; filename?: string }) => {
-    const qs = new URLSearchParams(params as Record<string, string>).toString();
+  fetchRecordings: (params?: { tenant_id?: string; date?: string; api_url?: string }) => {
+    return api.post<ApiSuccess<{
+      total: number;
+      newly_downloaded: number;
+      already_exists: number;
+      failed: number;
+      message: string;
+      target_directory?: string;
+    }>>('/telephony/recordings/fetch', params || {});
+  },
+
+  checkRecording: (params: {
+    uniqueid?: string;
+    phone?: string;
+    filename?: string;
+    start_time?: string;
+    destination?: string;
+    callerid?: string;
+    did?: string;
+  }) => {
+    const cleanParams: Record<string, string> = {};
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') {
+        cleanParams[k] = String(v);
+      }
+    }
+    const qs = new URLSearchParams(cleanParams).toString();
     return api.get<ApiSuccess<{ exists: boolean; uniqueid?: string; filename?: string; stream_url: string }>>(`/telephony/recordings/check?${qs}`);
   },
 
-  getRecordingStreamUrl: (params: { uniqueid?: string; phone?: string; filename?: string }) => {
-    const qs = new URLSearchParams(params as Record<string, string>).toString();
+  getRecordingStreamUrl: (params: {
+    uniqueid?: string;
+    phone?: string;
+    filename?: string;
+    start_time?: string;
+    destination?: string;
+    callerid?: string;
+    did?: string;
+  }) => {
+    const cleanParams: Record<string, string> = {};
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') {
+        cleanParams[k] = String(v);
+      }
+    }
+    const qs = new URLSearchParams(cleanParams).toString();
     return `${BASE}/telephony/recordings/stream?${qs}`;
   },
 
@@ -1066,6 +1108,10 @@ export const telephonyApi = {
     uniqueid?: string;
     phone?: string;
     filename?: string;
+    start_time?: string;
+    destination?: string;
+    callerid?: string;
+    did?: string;
     audio_url?: string;
     script?: 'urdu' | 'roman_urdu' | 'mixed';
     force?: boolean;

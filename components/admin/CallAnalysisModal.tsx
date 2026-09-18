@@ -104,6 +104,10 @@ export function CallAnalysisModal({ call, isOpen, onClose, onPlayAudio }: CallAn
     telephonyApi.checkRecording({
       uniqueid: call.uniqueid || String(call.id),
       phone: customerPhone,
+      destination: call.destination,
+      callerid: call.callerid,
+      start_time: call.start_time,
+      did: call.callerid || call.extension,
     })
       .then((res) => {
         if (res.data && res.data.exists) {
@@ -111,6 +115,10 @@ export function CallAnalysisModal({ call, isOpen, onClose, onPlayAudio }: CallAn
           const stream = telephonyApi.getRecordingStreamUrl({
             uniqueid: call.uniqueid || String(call.id),
             phone: customerPhone,
+            destination: call.destination,
+            callerid: call.callerid,
+            start_time: call.start_time,
+            filename: res.data.filename,
           });
           setAudioUrl(stream);
         } else {
@@ -122,7 +130,7 @@ export function CallAnalysisModal({ call, isOpen, onClose, onPlayAudio }: CallAn
       })
       .finally(() => setAudioChecking(false));
 
-  }, [isOpen, callIdentifier, customerPhone, call.id, call.uniqueid]);
+  }, [isOpen, callIdentifier, customerPhone, call.id, call.uniqueid, call.start_time, call.destination, call.callerid]);
 
   // Handle Play/Pause
   const togglePlay = () => {
@@ -157,6 +165,9 @@ export function CallAnalysisModal({ call, isOpen, onClose, onPlayAudio }: CallAn
         call_id: callIdentifier,
         uniqueid: call.uniqueid || String(call.id),
         phone: customerPhone,
+        destination: call.destination,
+        callerid: call.callerid,
+        start_time: call.start_time,
         script: script,
         force: force,
       });
