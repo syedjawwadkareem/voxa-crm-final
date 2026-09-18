@@ -345,12 +345,19 @@ export function CompanyCallLogs() {
     setFetchingRecordings(true);
     try {
       const res = await telephonyApi.fetchRecordings();
-      const info = res.data;
+      const info = (res.data as any)?.data || res.data;
       if (info) {
-        showToast(
-          'success',
-          info.message || `Processed ${info.total || 0} recordings: ${info.newly_downloaded || 0} downloaded, ${info.already_exists || 0} already present.`
-        );
+        if (info.failed > 0) {
+          showToast(
+            'info',
+            info.message || `Processed ${info.total || 0} recordings: ${info.failed} failed due to permissions.`
+          );
+        } else {
+          showToast(
+            'success',
+            info.message || `Processed ${info.total || 0} recordings: ${info.newly_downloaded || 0} downloaded, ${info.already_exists || 0} already present.`
+          );
+        }
       } else {
         showToast('success', 'Recordings fetched successfully.');
       }
